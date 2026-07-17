@@ -107,7 +107,7 @@ current Linux account.
 | `Win + Tab` | Open the window switcher |
 | `Win + Left/Right` | Snap the active window |
 | `Win + F` | Toggle fullscreen and taskbar visibility |
-| `Win + Space` | Cycle floating, corner, master, stack and scrolling layouts |
+| `Win + Space` | Cycle floating, golden-corner, master, stack and scrolling layouts |
 | `Win + mouse wheel` | Cycle quickly through workspaces |
 | `Win + Shift + S` | Select a screenshot region |
 | `Win + L` | Lock with the normal account password |
@@ -152,6 +152,11 @@ Weather uses Open-Meteo without an API key. Change the example location here:
 ```text
 ~/.config/windows11/location.json
 ```
+
+All Start-menu and taskbar Flatpak launches go through `windows-flatpak`, so
+they use the same binary regardless of the shell's PATH. On a custom LFS host
+where `xdg-document-portal` reports a FUSE mount error, run
+`windows-flatpak-repair` once and enter the normal administrator password.
 
 ---
 

@@ -286,7 +286,7 @@ import Quickshell
           ListElement { name: "Firefox"; icon: "firefox"; command: "firefox --name firefox" }
           ListElement { name: "Discord"; icon: "com.discordapp.Discord"; command: "discord"; match: "discord" }
           ListElement { name: "Prism Launcher"; icon: "org.prismlauncher.PrismLauncher"; command: "prismlauncher" }
-          ListElement { name: "Sober"; icon: "org.vinegarhq.Sober"; command: "flatpak run org.vinegarhq.Sober" }
+          ListElement { name: "Sober"; icon: "org.vinegarhq.Sober"; command: "@HOME@/.local/bin/windows-flatpak run org.vinegarhq.Sober" }
           ListElement { name: "File Explorer"; icon: "org.xfce.thunar"; command: "thunar" }
           ListElement { name: "Terminal"; icon: "kitty"; command: "kitty" }
           ListElement { name: "Easy Effects"; icon: "com.github.wwmm.easyeffects"; command: "easyeffects" }

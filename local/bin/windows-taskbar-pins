@@ -216,13 +216,29 @@ def icon_hint(pin):
 
     words = shlex.split(pin.get("command", ""))
     for index, word in enumerate(words[:-1]):
-        if Path(word).name == "flatpak" and words[index + 1] == "run":
+        if Path(word).name in {"flatpak", "windows-flatpak"} and words[index + 1] == "run":
             for candidate in words[index + 2:]:
                 if not candidate.startswith("-") and "." in candidate:
                     return candidate
     if words:
         return Path(words[0]).name
     return pin.get("name", "application-x-executable")
+
+
+def normalize_flatpak_commands(pins):
+    wrapper = str(HOME / ".local/bin/windows-flatpak")
+    changed = False
+    for pin in pins:
+        words = shlex.split(pin.get("command", ""))
+        for index, word in enumerate(words[:-1]):
+            if Path(word).name in {"flatpak", "windows-flatpak"} and words[index + 1] == "run":
+                if words[index] != wrapper:
+                    words[index] = wrapper
+                    pin["command"] = shlex.join(words)
+                    changed = True
+                break
+    if changed:
+        save_pins(pins)
 
 
 def refresh_cached_icons(pins):
@@ -277,6 +293,7 @@ def main():
     command = sys.argv[1] if len(sys.argv) > 1 else "generate"
     pins = load_pins()
     if command == "generate":
+        normalize_flatpak_commands(pins)
         refresh_cached_icons(pins)
         regenerate(pins)
         if "--restart" in sys.argv[2:]:

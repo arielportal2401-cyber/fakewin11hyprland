@@ -6,7 +6,6 @@ import json
 import os
 import re
 import shlex
-import shutil
 
 
 def application_directories():
@@ -79,8 +78,7 @@ for directory in application_directories():
                 # Exported Flatpak Exec lines contain file-forwarding markers
                 # such as @@u/%U/@@. Launch the canonical app ID instead of
                 # reconstructing a command with a broken trailing `--`.
-                flatpak = shutil.which("flatpak") or os.path.expanduser(
-                    "~/.nix-profile/bin/flatpak")
+                flatpak = os.path.expanduser("~/.local/bin/windows-flatpak")
                 command = shlex.join([flatpak, "run", flatpak_id])
             else:
                 words = [

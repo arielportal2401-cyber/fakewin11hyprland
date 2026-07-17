@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+marker="$HOME/.local/state/windows11/flatpak-portal-repaired"
+source_helper="$(readlink -f "$HOME/.nix-profile/bin/fusermount3")"
+target_helper="/usr/local/bin/fusermount3"
+
+printf '\nFlatpak portal repair\n'
+printf 'This installs only the FUSE mount helper required by xdg-document-portal.\n\n'
+
+doas install -o root -g root -m 4755 "$source_helper" "$target_helper"
+
+pkill -x xdg-desktop-portal 2>/dev/null || true
+pkill -x xdg-desktop-portal-gtk 2>/dev/null || true
+pkill -x xdg-desktop-portal-hyprland 2>/dev/null || true
+pkill -x xdg-document-portal 2>/dev/null || true
+sleep 0.4
+"$HOME/.local/bin/start-desktop-portals"
+
+for _ in {1..30}; do
+    if findmnt -rn /run/user/"$(id -u)"/doc >/dev/null 2>&1; then
+        mkdir -p "$(dirname "$marker")"
+        : > "$marker"
+        notify-send -a "Windows shell" "Flatpak repaired" "Document portal mounted successfully"
+        printf '\nSuccess: Flatpak document portal is mounted.\n'
+        printf 'Press Enter to close this window.\n'
+        read -r
+        exit 0
+    fi
+    sleep 0.1
+done
+
+printf '\nThe helper installed, but the portal did not mount. Leave this window open.\n'
+read -r
+exit 1

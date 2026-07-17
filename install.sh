@@ -109,7 +109,7 @@ dependencies=(
     hyprctl quickshell waybar rofi rg jq python3 yad awww grim slurp wl-copy
     hyprlock thunar kitty fastfetch iwctl bluetoothctl pavucontrol playerctl
     brightnessctl satty notify-send magick wpctl pactl swayosd-client cliphist
-    xdg-desktop-portal xdg-desktop-portal-hyprland xdg-user-dir pipewire
+    xdg-desktop-portal xdg-desktop-portal-hyprland xdg-user-dir pipewire flatpak
     starship eza bat zoxide btop cava pipes-rs chafa
 )
 
@@ -455,6 +455,7 @@ done
 
 chmod u+x \
     "$HOME/.local/bin"/windows-* \
+    "$HOME/.local/bin/start-desktop-portals" \
     "$HOME/.local/bin/hypr-profile-switch" \
     "$HOME/.local/bin/hypr-config-switcher"
 
@@ -485,6 +486,7 @@ for required_file in \
     "$HOME/.config/kitty/resize_font.py" \
     "$HOME/.config/starship.toml" \
     "$HOME/.local/bin/windows-shell" \
+    "$HOME/.local/bin/windows-flatpak" \
     "$HOME/.local/bin/windows-workspace-cycle" \
     "$HOME/.local/bin/windows-layout-watch" \
     "$HOME/.local/bin/windows-taskbar-watch"; do

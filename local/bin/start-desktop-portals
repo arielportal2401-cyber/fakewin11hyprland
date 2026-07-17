@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+libexec="$HOME/.nix-profile/libexec"
+export PATH="/usr/local/bin:/usr/bin:$HOME/.nix-profile/bin"
+
+start_once() {
+    local process="$1"
+    local executable="$2"
+    if [[ -x "$executable" ]] && ! pgrep -u "$(id -u)" -x "$process" >/dev/null 2>&1; then
+        "$executable" >/dev/null 2>&1 &
+    fi
+}
+
+# Backends must be present before the frontend chooses implementations.
+start_once xdg-document-portal "$libexec/xdg-document-portal"
+start_once xdg-desktop-portal-gtk "$libexec/xdg-desktop-portal-gtk"
+start_once xdg-desktop-portal-hyprland "$libexec/xdg-desktop-portal-hyprland"
+
+sleep 0.5
+start_once xdg-desktop-portal "$libexec/xdg-desktop-portal"

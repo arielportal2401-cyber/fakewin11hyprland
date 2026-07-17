@@ -12,6 +12,7 @@ current="windows"
 
 case "$action" in
     reset) target="windows" ;;
+    apply) target="$current" ;;
     next)
         case "$current" in
             windows) target="dwindle" ;;
@@ -21,7 +22,7 @@ case "$action" in
             scrolling|*) target="windows" ;;
         esac
         ;;
-    *) printf 'usage: %s [next|reset]\n' "$0" >&2; exit 2 ;;
+    *) printf 'usage: %s [next|reset|apply]\n' "$0" >&2; exit 2 ;;
 esac
 
 window_addresses() {
@@ -57,8 +58,15 @@ case "$target" in
         hyprctl keyword 'windowrule[windows_floating_desktop]:enable false' >/dev/null
         hyprctl keyword general:layout dwindle >/dev/null
         hyprctl keyword dwindle:smart_split true >/dev/null
+        # Hyprland expresses split ratios on a 0..2 scale. 1.236068 maps to
+        # 61.8034% / 38.1966%, the golden ratio, rather than 1.618034.
+        hyprctl keyword dwindle:default_split_ratio 1.236068 >/dev/null
+        hyprctl keyword dwindle:split_bias 1 >/dev/null
+        # Reinsert existing windows so every node is created with the new
+        # ratio; merely changing the default only affects future nodes.
+        float_all
         tile_all
-        label="Corner split"
+        label="Golden corner split"
         color="66eee5"
         ;;
     master-center)
