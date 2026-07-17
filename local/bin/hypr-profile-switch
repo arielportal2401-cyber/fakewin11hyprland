@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+profile="${1:-}"
+hypr_root="$HOME/.config/hypr"
+profile_root="$hypr_root/profiles/$profile"
+state_dir="$HOME/.local/state/hypr-profile-switcher"
+
+case "$profile" in
+    windows11|original) ;;
+    *)
+        echo "usage: hypr-profile-switch {windows11|original}" >&2
+        exit 2
+        ;;
+esac
+
+if [[ ! -d "$profile_root/config" ]]; then
+    echo "profile not found: $profile_root" >&2
+    exit 1
+fi
+
+# The original dotfiles watcher rewrites keybindings and autostart files.
+# It belongs only to the original profile.
+pkill -f "$hypr_root/scripts/settings_watcher.sh" 2>/dev/null || true
+
+if [[ "$profile" == "windows11" ]]; then
+    "$HOME/.local/bin/windows-shell" stop
+    pkill -f "$hypr_root/scripts/quickshell/Shell.qml" 2>/dev/null || true
+else
+    "$HOME/.local/bin/windows-shell" stop
+fi
+
+cp -f "$profile_root/colors.conf" "$hypr_root/colors.conf"
+cp -f "$profile_root/config/"*.conf "$hypr_root/config/"
+
+hyprctl reload
+
+if [[ "$profile" == "windows11" ]]; then
+    "$HOME/.local/bin/windows-shell" start
+else
+    "$hypr_root/scripts/qs_manager.sh" start >/dev/null 2>&1 || true
+    nohup "$hypr_root/scripts/settings_watcher.sh" >/tmp/hypr-settings-watcher.log 2>&1 &
+fi
+
+mkdir -p "$state_dir"
+printf '%s\n' "$profile" >"$state_dir/current"
+hyprctl notify 1 3500 "rgb(60cdff)" "Desktop profile: $profile"

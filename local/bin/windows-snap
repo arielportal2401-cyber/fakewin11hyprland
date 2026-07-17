@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+
+direction="$1"
+window_json=$(hyprctl activewindow -j)
+monitor_id=$(jq -r '.monitor // empty' <<< "$window_json")
+
+[ -n "$monitor_id" ] || exit 1
+
+monitor_json=$(hyprctl monitors -j | jq --argjson id "$monitor_id" '.[] | select(.id == $id)')
+
+x=$(jq -r '.x + .reserved[0]' <<< "$monitor_json")
+y=$(jq -r '.y + .reserved[1]' <<< "$monitor_json")
+width=$(jq -r '.width - .reserved[0] - .reserved[2]' <<< "$monitor_json")
+height=$(jq -r '.height - .reserved[1] - .reserved[3]' <<< "$monitor_json")
+half=$((width / 2))
+
+hyprctl dispatch setfloating >/dev/null
+hyprctl dispatch resizeactive exact "$half" "$height" >/dev/null
+
+case "$direction" in
+    left)
+        hyprctl dispatch moveactive exact "$x" "$y" >/dev/null
+        ;;
+    right)
+        hyprctl dispatch moveactive exact "$((x + half))" "$y" >/dev/null
+        ;;
+    *)
+        exit 2
+        ;;
+esac

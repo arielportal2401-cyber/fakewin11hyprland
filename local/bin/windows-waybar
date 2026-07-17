@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+
+exec waybar --log-level debug \
+    --config "$HOME/.config/waybar/windows11/config.jsonc" \
+    --style "$HOME/.config/waybar/windows11/style.css" \
+    >>/tmp/windows11-waybar.log 2>&1

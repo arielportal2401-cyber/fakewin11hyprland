@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+*.log
+*.bak
+*~
+.DS_Store
+
+# Runtime state belongs to the machine, not the rice.
+.cache/
+.local/state/
+config/windows11/location.local.json

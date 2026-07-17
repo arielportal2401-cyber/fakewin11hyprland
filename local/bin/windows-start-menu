@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+CONFIG="$HOME/.config/quickshell/windows11/shell.qml"
+
+# Start the shell if needed. --no-duplicate prevents extra taskbars.
+quickshell --no-duplicate --daemonize --path "$CONFIG" >/dev/null 2>&1
+
+# A new instance needs a moment to register its IPC endpoint.
+for _ in $(seq 1 20); do
+    if quickshell --path "$CONFIG" ipc call windowsStart toggle >/dev/null 2>&1; then
+        exit 0
+    fi
+    sleep 0.05
+done
+
+exit 1

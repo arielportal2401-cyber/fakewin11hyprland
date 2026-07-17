@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+cache="$HOME/.cache/windows11/current-wallpaper"
+fallback="$HOME/.local/share/windows11/wallpapers/windows-dark.jpg"
+image="$fallback"
+[[ -f "$cache" ]] && image="$cache"
+
+for _ in {1..20}; do
+    if awww query >/dev/null 2>&1; then
+        exec awww img "$image" --transition-type none
+    fi
+    sleep 0.25
+done
+
+exit 1

@@ -1,0 +1,248 @@
+#!/usr/bin/env python3
+
+import glob
+import hashlib
+import json
+import os
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+HOME = Path.home()
+STATE = HOME / ".local/state/windows-taskbar/pins.json"
+CONFIG = HOME / ".config/waybar/windows11/config.jsonc"
+STYLE = HOME / ".config/waybar/windows11/style.css"
+ICON_CACHE = HOME / ".local/share/windows11/taskbar-icons"
+START = "/* WINDOWS_PINNED_APPS_START */"
+END = "/* WINDOWS_PINNED_APPS_END */"
+
+DEFAULTS = [
+    {
+        "id": "explorer",
+        "name": "File Explorer",
+        "match": "^(thunar)$",
+        "command": "thunar",
+        "icon": str(HOME / ".config/quickshell/windows11/assets/explorer-waybar.png"),
+    },
+    {
+        "id": "browser",
+        "name": "Zen Browser",
+        "match": "^(zen|zen-browser)$",
+        "command": "zen-browser",
+        "icon": str(HOME / ".config/quickshell/windows11/assets/zen-waybar.png"),
+    },
+    {
+        "id": "discord",
+        "name": "Discord",
+        "match": "^(discord|vesktop)$",
+        "command": "flatpak run com.discordapp.Discord",
+        "icon": str(HOME / ".config/quickshell/windows11/assets/discord-waybar.png"),
+    },
+    {
+        "id": "kitty",
+        "name": "Terminal",
+        "match": "^(kitty)$",
+        "command": "kitty",
+        "icon": str(HOME / ".config/quickshell/windows11/assets/kitty-waybar.png"),
+    },
+]
+
+
+def load_pins():
+    if not STATE.exists():
+        STATE.parent.mkdir(parents=True, exist_ok=True)
+        STATE.write_text(json.dumps(DEFAULTS, indent=2) + "\n")
+    return json.loads(STATE.read_text())
+
+
+def save_pins(pins):
+    STATE.parent.mkdir(parents=True, exist_ok=True)
+    temporary = STATE.with_suffix(".tmp")
+    temporary.write_text(json.dumps(pins, indent=2) + "\n")
+    temporary.replace(STATE)
+
+
+def shell_command(parts):
+    return shlex.join([str(part) for part in parts])
+
+
+def ignored_app_ids(match):
+    cleaned = match.strip().removeprefix("^").removesuffix("$")
+    if cleaned.startswith("(") and cleaned.endswith(")"):
+        cleaned = cleaned[1:-1]
+    return [part.replace("\\.", ".") for part in cleaned.split("|")
+            if re.fullmatch(r"[A-Za-z0-9_.-]+", part.replace("\\.", "."))]
+
+
+def regenerate(pins):
+    config = json.loads(CONFIG.read_text())
+    legacy = {"custom/explorer", "custom/browser", "custom/discord", "custom/store"}
+    center = [m for m in config["modules-center"]
+              if m not in legacy and m != "custom/running-balance" and not m.startswith("custom/pin-")]
+    taskbar_index = center.index("wlr/taskbar")
+    modules = [f"custom/pin-{pin['id']}" for pin in pins]
+    config["modules-center"] = center[:taskbar_index] + modules + center[taskbar_index:]
+
+    for key in list(config):
+        if key in legacy or key.startswith("custom/pin-"):
+            del config[key]
+
+    for pin in pins:
+        module = f"custom/pin-{pin['id']}"
+        launch = ["/bin/sh", "-lc", pin["command"]]
+        config[module] = {
+            "format": " ",
+            "return-type": "json",
+            "exec": shell_command([HOME / ".local/bin/windows-task-state", pin["match"], pin["name"]]),
+            "interval": 1,
+            "tooltip": True,
+            "on-click": shell_command([HOME / ".local/bin/windows-task-action", "toggle", pin["match"], *launch]),
+            "on-click-middle": shell_command([HOME / ".local/bin/windows-task-action", "new", pin["match"], *launch]),
+            "on-click-right": shell_command([HOME / ".local/bin/windows-task-menu", pin["id"]]),
+        }
+
+    config.pop("custom/running-balance", None)
+
+    config["wlr/taskbar"]["ignore-list"] = list(dict.fromkeys(
+        app_id for pin in pins for app_id in ignored_app_ids(pin["match"])
+    ))
+
+    CONFIG.write_text(json.dumps(config, indent=2) + "\n")
+
+    css = STYLE.read_text()
+    if START in css and END in css:
+        css = css.split(START, 1)[0].rstrip() + "\n"
+
+    ids = [f"#custom-pin-{pin['id']}" for pin in pins]
+    generated = ["", START]
+    if ids:
+        joined = ",\n".join(ids)
+        hover = ":hover,\n".join(ids) + ":hover"
+        generated += [
+            f"{joined} {{",
+            "  min-width: 44px;",
+            "  min-height: 40px;",
+            "  margin: 3px 0;",
+            "  padding: 0;",
+            "  border-radius: 4px;",
+            "  background-color: transparent;",
+            "  background-repeat: no-repeat;",
+            "  background-position: center;",
+            "}",
+            f"{hover} {{",
+            "  background-color: rgba(255, 255, 255, 0.13);",
+            "}",
+        ]
+        for pin in pins:
+            icon = pin["icon"].replace('"', '\\"')
+            generated += [
+                f"#custom-pin-{pin['id']} {{",
+                f'  background-image: url("{icon}");',
+                "}",
+                f"#custom-pin-{pin['id']}.running {{",
+                f'  background-image: url("{HOME}/.config/quickshell/windows11/assets/task-indicator-running.png"), url("{icon}");',
+                "}",
+                f"#custom-pin-{pin['id']}.active {{",
+                f'  background-image: url("{HOME}/.config/quickshell/windows11/assets/task-indicator-active.png"), url("{icon}");',
+                "  background-color: rgba(255, 255, 255, 0.10);",
+                "}",
+            ]
+    generated.append(END)
+    STYLE.write_text(css.rstrip() + "\n" + "\n".join(generated) + "\n")
+
+
+def restart_bar():
+    subprocess.run([str(HOME / ".local/bin/windows-shell"), "restart"], check=False)
+
+
+def find_icon(icon):
+    source = Path(os.path.expanduser(icon))
+    if source.is_file():
+        return source
+    roots = [
+        HOME / ".local/share/icons",
+        HOME / ".local/share/flatpak/exports/share/icons",
+        HOME / ".nix-profile/share/icons",
+        Path("/var/lib/flatpak/exports/share/icons"),
+        Path("/usr/share/icons"),
+        Path("/usr/share/pixmaps"),
+    ]
+    names = [icon, icon.lower()]
+    for root in roots:
+        if not root.exists():
+            continue
+        for name in names:
+            for extension in ("png", "svg", "xpm"):
+                matches = glob.glob(str(root / "**" / f"{name}.{extension}"), recursive=True)
+                if matches:
+                    return Path(matches[-1])
+    return None
+
+
+def cache_icon(identifier, icon):
+    ICON_CACHE.mkdir(parents=True, exist_ok=True)
+    destination = ICON_CACHE / f"{identifier}.png"
+    source = find_icon(icon) or find_icon("application-x-executable")
+    if source:
+        subprocess.run([
+            "magick", str(source), "-background", "none", "-resize", "25x25",
+            "-gravity", "center", "-extent", "32x32", str(destination),
+        ], check=False)
+    return str(destination if destination.exists() else source or "")
+
+
+def default_match(name, command):
+    words = shlex.split(command)
+    candidates = [name]
+    if words:
+        candidates.append(Path(words[0]).name)
+    if len(words) >= 3 and words[0].endswith("flatpak") and words[1] == "run":
+        candidates.append(words[2])
+        candidates.append(words[2].split(".")[-1])
+    unique = [re.escape(item) for item in dict.fromkeys(candidates) if item]
+    return "^(" + "|".join(unique) + ")$"
+
+
+def add_pin(name, command, icon, match=""):
+    pins = load_pins()
+    identity = hashlib.sha1((name + "\0" + command).encode()).hexdigest()[:8]
+    slug = re.sub(r"[^a-z0-9]+", "-", name.casefold()).strip("-")[:24] or "app"
+    identifier = f"{slug}-{identity}"
+    if any(pin["command"] == command for pin in pins):
+        return False
+    pins.append({
+        "id": identifier,
+        "name": name,
+        "match": match or default_match(name, command),
+        "command": command,
+        "icon": cache_icon(identifier, icon),
+    })
+    save_pins(pins)
+    regenerate(pins)
+    restart_bar()
+    return True
+
+
+def main():
+    command = sys.argv[1] if len(sys.argv) > 1 else "generate"
+    pins = load_pins()
+    if command == "generate":
+        regenerate(pins)
+        if "--restart" in sys.argv[2:]:
+            restart_bar()
+    elif command == "add" and len(sys.argv) >= 5:
+        add_pin(sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5] if len(sys.argv) > 5 else "")
+    elif command == "remove" and len(sys.argv) == 3:
+        pins = [pin for pin in pins if pin["id"] != sys.argv[2]]
+        save_pins(pins)
+        regenerate(pins)
+        restart_bar()
+    else:
+        raise SystemExit("usage: windows-taskbar-pins generate [--restart] | add NAME COMMAND ICON [MATCH] | remove ID")
+
+
+if __name__ == "__main__":
+    main()

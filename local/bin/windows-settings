@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+CONFIG="$HOME/.config/quickshell/windows11/shell.qml"
+quickshell --no-duplicate --daemonize --path "$CONFIG" >/dev/null 2>&1
+for _ in $(seq 1 20); do
+    if quickshell --path "$CONFIG" ipc call windowsStart openSettings >/dev/null 2>&1; then exit 0; fi
+    sleep 0.05
+done
+exit 1

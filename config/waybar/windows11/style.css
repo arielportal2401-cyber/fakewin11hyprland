@@ -1,0 +1,193 @@
+* {
+  border: none;
+  border-radius: 0;
+  min-height: 0;
+  font-family: "Noto Sans", sans-serif;
+  font-size: 12px;
+  box-shadow: none;
+  text-shadow: none;
+}
+
+window#waybar.windows11-taskbar {
+  background-color: rgba(27, 32, 41, 0.92);
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+  color: #f5f5f5;
+}
+
+#taskbar {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+#custom-weather {
+  min-width: 70px;
+  margin-left: 8px;
+  padding: 0 9px;
+  border-radius: 5px;
+  color: #eeeeee;
+  font-size: 12px;
+}
+
+#custom-start,
+#custom-search,
+#custom-taskview,
+#taskbar button {
+  min-width: 44px;
+  min-height: 40px;
+  margin: 3px 0;
+  padding: 0;
+  border-radius: 4px;
+  background-color: transparent;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+#custom-start:hover,
+#custom-search:hover,
+#custom-taskview:hover,
+#taskbar button:hover {
+  background-color: rgba(255, 255, 255, 0.13);
+}
+
+#custom-start {
+  background-image: url("@HOME@/.config/quickshell/windows11/assets/windows-logo-2021-23-rgba.png");
+}
+#custom-search {
+  background-image: url("@HOME@/.config/quickshell/windows11/assets/search-waybar.png");
+}
+#custom-taskview {
+  background-image: url("@HOME@/.config/quickshell/windows11/assets/taskview-waybar.png");
+}
+#taskbar button {
+  min-height: 40px;
+  background-image: url("@HOME@/.config/quickshell/windows11/assets/task-indicator-running.png");
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+/* Waybar packs wlr/taskbar images at the button's leading edge. Center the
+   25px icon inside the shared 44px taskbar button. */
+#taskbar button image {
+  margin-left: 10px;
+}
+
+#taskbar button.active {
+  background-image: url("@HOME@/.config/quickshell/windows11/assets/task-indicator-active.png");
+  background-color: rgba(255, 255, 255, 0.10);
+}
+
+#custom-chevron,
+#custom-wifi,
+#custom-volume {
+  min-width: 23px;
+  min-height: 40px;
+  margin: 3px 0;
+  padding: 0;
+  background-color: transparent;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+#custom-chevron {
+  border-radius: 5px 0 0 5px;
+  background-image: url("@HOME@/.config/quickshell/windows11/assets/chevron-waybar.png");
+}
+#custom-wifi {
+  background-image: url("@HOME@/.config/quickshell/windows11/assets/wifi-waybar.png");
+}
+#custom-volume {
+  border-radius: 0 5px 5px 0;
+  background-image: url("@HOME@/.config/quickshell/windows11/assets/volume-waybar.png");
+}
+
+#custom-chevron:hover,
+#custom-wifi:hover,
+#custom-volume:hover,
+#clock:hover,
+#custom-alert:hover {
+  background-color: rgba(255, 255, 255, 0.13);
+}
+
+#clock {
+  min-width: 78px;
+  min-height: 40px;
+  margin: 3px 0;
+  padding: 0;
+  border-radius: 5px;
+  color: #ffffff;
+  font-size: 11px;
+}
+
+#custom-alert {
+  min-width: 30px;
+  min-height: 40px;
+  margin: 3px 0;
+  padding: 0;
+  border-radius: 4px;
+  background-color: transparent;
+  background-image: url("@HOME@/.config/quickshell/windows11/assets/alert-waybar.png");
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+#custom-showdesktop {
+  min-width: 5px;
+  min-height: 47px;
+  margin: 0;
+  padding: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+#custom-showdesktop:hover {
+  background-color: rgba(255, 255, 255, 0.10);
+}
+
+/* WINDOWS_PINNED_APPS_START */
+#custom-pin-explorer,
+#custom-pin-browser,
+#custom-pin-kitty {
+  min-width: 44px;
+  min-height: 40px;
+  margin: 3px 0;
+  padding: 0;
+  border-radius: 4px;
+  background-color: transparent;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+#custom-pin-explorer:hover,
+#custom-pin-browser:hover,
+#custom-pin-kitty:hover {
+  background-color: rgba(255, 255, 255, 0.13);
+}
+#custom-pin-explorer {
+  background-image: url("@HOME@/.config/quickshell/windows11/assets/explorer-waybar.png");
+}
+#custom-pin-explorer.running {
+  background-image: url("@HOME@/.config/quickshell/windows11/assets/task-indicator-running.png"), url("@HOME@/.config/quickshell/windows11/assets/explorer-waybar.png");
+}
+#custom-pin-explorer.active {
+  background-image: url("@HOME@/.config/quickshell/windows11/assets/task-indicator-active.png"), url("@HOME@/.config/quickshell/windows11/assets/explorer-waybar.png");
+  background-color: rgba(255, 255, 255, 0.10);
+}
+#custom-pin-browser {
+  background-image: url("@HOME@/.config/quickshell/windows11/assets/zen-waybar.png");
+}
+#custom-pin-browser.running {
+  background-image: url("@HOME@/.config/quickshell/windows11/assets/task-indicator-running.png"), url("@HOME@/.config/quickshell/windows11/assets/zen-waybar.png");
+}
+#custom-pin-browser.active {
+  background-image: url("@HOME@/.config/quickshell/windows11/assets/task-indicator-active.png"), url("@HOME@/.config/quickshell/windows11/assets/zen-waybar.png");
+  background-color: rgba(255, 255, 255, 0.10);
+}
+#custom-pin-kitty {
+  background-image: url("@HOME@/.config/quickshell/windows11/assets/kitty-waybar.png");
+}
+#custom-pin-kitty.running {
+  background-image: url("@HOME@/.config/quickshell/windows11/assets/task-indicator-running.png"), url("@HOME@/.config/quickshell/windows11/assets/kitty-waybar.png");
+}
+#custom-pin-kitty.active {
+  background-image: url("@HOME@/.config/quickshell/windows11/assets/task-indicator-active.png"), url("@HOME@/.config/quickshell/windows11/assets/kitty-waybar.png");
+  background-color: rgba(255, 255, 255, 0.10);
+}
+/* WINDOWS_PINNED_APPS_END */

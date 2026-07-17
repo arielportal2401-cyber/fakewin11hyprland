@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+CONFIG="$HOME/.config/quickshell/windows11/shell.qml"
+quickshell --path "$CONFIG" ipc call windowsStart toggleQuickSettings

@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+config="$HOME/.config/waybar/windows11/config.jsonc"
+task=true; weather=true
+jq -e '."modules-center" | index("custom/taskview")' "$config" >/dev/null || task=false
+jq -e '."modules-left" | index("custom/weather")' "$config" >/dev/null || weather=false
+set +e
+result="$(yad --form --title="Taskbar" --fixed --width=360 --height=180 \
+  --field="Show Task View:CHK" "$task" --field="Show weather:CHK" "$weather" \
+  --button="Apply":0 --button="Cancel":1)"; status=$?
+set -e
+[[ $status -eq 0 ]] || exit 0
+IFS='|' read -r task weather _ <<<"$result"
+tmp="$(mktemp)"
+jq --arg task "${task,,}" --arg weather "${weather,,}" '
+  ."modules-center" |= map(select(. != "custom/taskview")) |
+  if $task == "true" then ."modules-center" |= (.[0:2] + ["custom/taskview"] + .[2:]) else . end |
+  ."modules-left" |= map(select(. != "custom/weather")) |
+  if $weather == "true" then ."modules-left" = ["custom/weather"] + ."modules-left" else . end
+' "$config" >"$tmp"
+mv "$tmp" "$config"
+exec "$HOME/.local/bin/windows-shell" restart

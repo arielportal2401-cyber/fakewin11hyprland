@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+action="${1:-}"
+match="${2:-}"
+shift "$(( $# >= 2 ? 2 : $# ))"
+
+if [[ -z "$action" || -z "$match" || $# -eq 0 ]]; then
+    echo "usage: windows-task-action {toggle|new} CLASS_REGEX COMMAND [ARG ...]" >&2
+    exit 2
+fi
+
+launch_new() {
+    hyprctl dispatch exec -- "$@" >/dev/null
+}
+
+launch_and_focus() {
+    local before="$1"
+    shift
+    launch_new "$@"
+    for _ in {1..40}; do
+        sleep 0.1
+        local now candidate workspace current_name
+        now="$(hyprctl clients -j 2>/dev/null || printf '[]')"
+        candidate="$(jq -r --arg re "$match" --argjson before "$before" '
+            [.[]
+              | select(.mapped == true)
+              | select(((.class // "") + "\n" + (.initialClass // "")) | test($re; "i"))
+              | select(.address as $address | ($before | index($address)) == null)]
+            | .[0].address // empty
+        ' <<<"$now")"
+        [[ -n "$candidate" ]] || continue
+        workspace="$(jq -r --arg address "$candidate" '.[] | select(.address == $address) | .workspace.name' <<<"$now")"
+        current_name="$(hyprctl activeworkspace -j | jq -r '.name')"
+        [[ "$workspace" == "$current_name" ]] || hyprctl dispatch workspace "$workspace" >/dev/null
+        hyprctl dispatch focuswindow "address:$candidate" >/dev/null
+        return 0
+    done
+}
+
+if [[ "$action" == "new" ]]; then
+    launch_new "$@"
+    exit 0
+fi
+
+if [[ "$action" != "toggle" ]]; then
+    echo "unknown action: $action" >&2
+    exit 2
+fi
+
+clients="$(hyprctl clients -j)"
+active_json="$(hyprctl activewindow -j)"
+active="$(jq -r '.address // empty' <<<"$active_json")"
+active_matches="$(jq -r --arg re "$match" '
+    (((.class // "") + "\n" + (.initialClass // "")) | test($re; "i"))
+' <<<"$active_json")"
+
+state_dir="$HOME/.local/state/windows-taskbar/minimized"
+state_key="$(printf '%s' "$match" | sha256sum | cut -d' ' -f1)"
+state_file="$state_dir/$state_key"
+
+if [[ "$active_matches" == "true" && -n "$active" ]]; then
+    mkdir -p "$state_dir"
+    printf '%s\n' "$active" >"$state_file"
+    hyprctl dispatch movetoworkspacesilent "special:minimized,address:$active" >/dev/null
+    exit 0
+fi
+
+address=""
+if [[ -r "$state_file" ]]; then
+    remembered="$(<"$state_file")"
+    remembered_ws="$(jq -r --arg address "$remembered" '.[] | select(.address == $address) | .workspace.name' <<<"$clients")"
+    if [[ "$remembered_ws" == "special:minimized" ]]; then
+        address="$remembered"
+    fi
+fi
+
+if [[ -z "$address" ]]; then
+    address="$(jq -r --arg re "$match" '
+        [.[]
+          | select(.mapped == true)
+          | select(((.class // "") + "\n" + (.initialClass // "")) | test($re; "i"))]
+        | sort_by(.focusHistoryID // 999999)
+        | .[0].address // empty
+    ' <<<"$clients")"
+fi
+
+if [[ -z "$address" ]]; then
+    before="$(jq -c '[.[].address]' <<<"$clients")"
+    launch_and_focus "$before" "$@"
+    exit 0
+fi
+
+workspace="$(jq -r --arg address "$address" '.[] | select(.address == $address) | .workspace.name' <<<"$clients")"
+
+if [[ "$workspace" == "special:minimized" ]]; then
+    current="$(hyprctl activeworkspace -j | jq -r '.id')"
+    hyprctl dispatch movetoworkspacesilent "$current,address:$address" >/dev/null
+    hyprctl dispatch focuswindow "address:$address" >/dev/null
+    rm -f "$state_file"
+else
+    current_name="$(hyprctl activeworkspace -j | jq -r '.name')"
+    if [[ "$workspace" != "$current_name" ]]; then
+        hyprctl dispatch workspace "$workspace" >/dev/null
+    fi
+    hyprctl dispatch focuswindow "address:$address" >/dev/null
+fi

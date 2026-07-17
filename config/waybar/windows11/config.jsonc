@@ -1,0 +1,125 @@
+{
+  "name": "windows11-taskbar",
+  "layer": "overlay",
+  "position": "bottom",
+  "height": 48,
+  "exclusive": true,
+  "fixed-center": true,
+  "spacing": 0,
+  "modules-left": [],
+  "modules-center": [
+    "custom/start",
+    "custom/search",
+    "custom/taskview",
+    "custom/pin-explorer",
+    "custom/pin-browser",
+    "custom/pin-kitty",
+    "wlr/taskbar"
+  ],
+  "modules-right": [
+    "custom/chevron",
+    "custom/wifi",
+    "custom/volume",
+    "clock",
+    "custom/alert",
+    "custom/showdesktop"
+  ],
+  "custom/weather": {
+    "format": "{}",
+    "return-type": "json",
+    "exec": "@HOME@/.local/bin/windows-weather",
+    "interval": 900,
+    "tooltip": true,
+    "on-click": "@HOME@/.local/bin/windows-settings",
+    "on-click-right": "@HOME@/.local/bin/windows-weather-settings"
+  },
+  "custom/start": {
+    "format": " ",
+    "tooltip": false,
+    "on-click": "@HOME@/.local/bin/windows-start-menu"
+  },
+  "custom/search": {
+    "format": " ",
+    "tooltip": false,
+    "on-click": "@HOME@/.local/bin/windows-start-menu"
+  },
+  "custom/taskview": {
+    "format": " ",
+    "tooltip": false,
+    "on-click": "rofi -show window",
+    "on-click-right": "@HOME@/.local/bin/windows-taskbar-options"
+  },
+  "wlr/taskbar": {
+    "format": "{icon}",
+    "icon-size": 25,
+    "tooltip-format": "{title}",
+    "on-click": "minimize-raise",
+    "on-click-middle": "activate",
+    "ignore-list": [
+      "thunar",
+      "zen",
+      "zen-browser",
+      "kitty"
+    ]
+  },
+  "custom/chevron": {
+    "format": " ",
+    "tooltip": false,
+    "on-click": "@HOME@/.local/bin/windows-tray-menu"
+  },
+  "custom/wifi": {
+    "format": " ",
+    "tooltip": false,
+    "on-click": "@HOME@/.local/bin/windows-quick-settings"
+  },
+  "custom/volume": {
+    "format": " ",
+    "tooltip": false,
+    "on-click": "@HOME@/.local/bin/windows-quick-settings"
+  },
+  "clock": {
+    "format": "{:%H:%M\n%d.%m.%Y}",
+    "tooltip": false,
+    "on-click": "@HOME@/.local/bin/windows-calendar"
+  },
+  "custom/alert": {
+    "format": " ",
+    "tooltip": false,
+    "on-click": "@HOME@/.local/bin/windows-notification-center"
+  },
+  "custom/showdesktop": {
+    "format": " ",
+    "tooltip": false,
+    "on-click": "hyprctl dispatch workspace special:desktop"
+  },
+  "custom/pin-explorer": {
+    "format": " ",
+    "return-type": "json",
+    "exec": "@HOME@/.local/bin/windows-task-state '^(thunar)$' 'File Explorer'",
+    "interval": 1,
+    "tooltip": true,
+    "on-click": "@HOME@/.local/bin/windows-task-action toggle '^(thunar)$' /bin/sh -lc thunar",
+    "on-click-middle": "@HOME@/.local/bin/windows-task-action new '^(thunar)$' /bin/sh -lc thunar",
+    "on-click-right": "@HOME@/.local/bin/windows-task-menu explorer"
+  },
+  "custom/pin-browser": {
+    "format": " ",
+    "return-type": "json",
+    "exec": "@HOME@/.local/bin/windows-task-state '^(zen|zen-browser)$' 'Zen Browser'",
+    "interval": 1,
+    "tooltip": true,
+    "on-click": "@HOME@/.local/bin/windows-task-action toggle '^(zen|zen-browser)$' /bin/sh -lc zen-browser",
+    "on-click-middle": "@HOME@/.local/bin/windows-task-action new '^(zen|zen-browser)$' /bin/sh -lc zen-browser",
+    "on-click-right": "@HOME@/.local/bin/windows-task-menu browser"
+  },
+  "custom/pin-kitty": {
+    "format": " ",
+    "return-type": "json",
+    "exec": "@HOME@/.local/bin/windows-task-state '^(kitty)$' Terminal",
+    "interval": 1,
+    "tooltip": true,
+    "on-click": "@HOME@/.local/bin/windows-task-action toggle '^(kitty)$' /bin/sh -lc kitty",
+    "on-click-middle": "@HOME@/.local/bin/windows-task-action new '^(kitty)$' /bin/sh -lc kitty",
+    "on-click-right": "@HOME@/.local/bin/windows-task-menu kitty"
+  }
+}

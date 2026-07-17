@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+set +e
+yad --title="Hidden icons" --mouse --fixed --undecorated --skip-taskbar --width=260 --height=180 \
+  --text="<b>System controls</b>" --button="Settings":10 --button="Volume":20 \
+  --button="Bluetooth":30 --button="Network":40 --button="Close":1
+choice=$?
+set -e
+case "$choice" in
+  10) exec "$HOME/.local/bin/windows-settings" ;;
+  20) exec pavucontrol ;;
+  30) quickshell --path "$HOME/.config/quickshell/windows11/shell.qml" ipc call windowsStart openBluetooth ;;
+  40) quickshell --path "$HOME/.config/quickshell/windows11/shell.qml" ipc call windowsStart openWifi ;;
+esac

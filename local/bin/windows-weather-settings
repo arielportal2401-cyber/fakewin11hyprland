@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+file="$HOME/.config/windows11/location.json"
+name="$(jq -r .name "$file")"; lat="$(jq -r .latitude "$file")"; lon="$(jq -r .longitude "$file")"
+set +e
+result="$(yad --form --title="Weather location" --fixed --width=380 --height=220 \
+  --field="City" "$name" --field="Latitude:NUM" "$lat" --field="Longitude:NUM" "$lon" \
+  --button="Save":0 --button="Cancel":1)"; status=$?
+set -e
+[[ $status -eq 0 ]] || exit 0
+IFS='|' read -r name lat lon _ <<<"$result"
+jq -n --arg name "$name" --argjson latitude "$lat" --argjson longitude "$lon" \
+  '{name:$name,latitude:$latitude,longitude:$longitude,timezone:"Asia/Jerusalem"}' >"$file"
+rm -f "$HOME/.cache/windows11-weather.json"
+exec "$HOME/.local/bin/windows-shell" restart

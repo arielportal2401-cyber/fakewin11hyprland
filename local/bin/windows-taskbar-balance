@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+config="$HOME/.config/waybar/windows11/config.jsonc"
+clients="$(hyprctl clients -j 2>/dev/null || printf '[]')"
+if ! jq -e . >/dev/null 2>&1 <<<"$clients"; then clients='[]'; fi
+ignored="$(jq -c '."wlr/taskbar"."ignore-list" // []' "$config")"
+
+count="$(jq -nr --argjson clients "$clients" --argjson ignored "$ignored" '
+    [$clients[]
+      | select(.mapped == true)
+      | (.class // .initialClass // "") as $class
+      | select(($ignored | map(ascii_downcase) | index($class | ascii_downcase)) == null)]
+    | length
+')"
+(( count > 12 )) && count=12
+jq -cn --arg text " " --arg class "count-$count" '{text:$text,class:$class}'

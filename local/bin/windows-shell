@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+set -u
+
+WINDOWS_QML="$HOME/.config/quickshell/windows11/shell.qml"
+
+start_shell() {
+    rm -f "$HOME/.local/state/windows11/taskbar-hidden"
+    pkill -f "$HOME/.config/hypr/scripts/quickshell/Shell.qml" 2>/dev/null || true
+    WINDOWS_TASKBAR=waybar quickshell --no-duplicate --daemonize --path "$WINDOWS_QML" >/dev/null 2>&1
+    pkill -f "$HOME/.config/waybar/windows11/config.jsonc" 2>/dev/null || true
+    hyprctl dispatch exec -- "$HOME/.local/bin/windows-waybar" >/dev/null
+}
+
+stop_shell() {
+    pkill -f "$WINDOWS_QML" 2>/dev/null || true
+    pkill -f "$HOME/.config/waybar/windows11/config.jsonc" 2>/dev/null || true
+}
+
+case "${1:-start}" in
+    start) start_shell ;;
+    stop) stop_shell ;;
+    restart)
+        stop_shell
+        start_shell
+        ;;
+    *)
+        echo "usage: windows-shell {start|stop|restart}" >&2
+        exit 2
+        ;;
+esac

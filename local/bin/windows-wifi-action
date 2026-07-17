@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+interface="$(find /sys/class/net -mindepth 1 -maxdepth 1 -type l -printf '%f\n' | while read -r name; do [[ -d "/sys/class/net/$name/wireless" ]] && { printf '%s\n' "$name"; break; }; done)"
+[[ -n "$interface" ]] || exit 1
+
+case "${1:-}" in
+    scan) iwctl station "$interface" scan ;;
+    disconnect) iwctl station "$interface" disconnect ;;
+    power)
+        state="$(iwctl device "$interface" show 2>/dev/null)"
+        if grep -qi 'Powered.*on' <<<"$state"; then value=off; else value=on; fi
+        iwctl device "$interface" set-property Powered "$value"
+        ;;
+    connect)
+        ssid="${2:?missing network name}"
+        security="${3:-psk}"
+        if [[ "$security" == "open" ]]; then
+            exec iwctl station "$interface" connect "$ssid"
+        fi
+
+        set +e
+        output="$(iwctl --dont-ask station "$interface" connect "$ssid" 2>&1)"
+        status=$?
+        set -e
+        if [[ $status -eq 0 ]] && ! grep -qiE 'failed|passphrase|credential' <<<"$output"; then
+            exit 0
+        fi
+
+        set +e
+        password="$(yad --entry --hide-text --title="Connect to $ssid" --window-icon="network-wireless" \
+            --text="Enter the network security key" --button="Connect":0 --button="Cancel":1)"
+        status=$?
+        set -e
+        [[ $status -eq 0 && -n "$password" ]] || exit 0
+        exec iwctl --passphrase "$password" station "$interface" connect "$ssid"
+        ;;
+    *) echo "usage: windows-wifi-action {scan|disconnect|power|connect SSID [SECURITY]}" >&2; exit 2 ;;
+esac

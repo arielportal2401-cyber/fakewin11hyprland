@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+id="${1:?missing pinned app id}"
+state="$HOME/.local/state/windows-taskbar/pins.json"
+pin="$(jq -c --arg id "$id" '.[] | select(.id == $id)' "$state")"
+[[ -n "$pin" ]] || exit 0
+
+name="$(jq -r '.name' <<<"$pin")"
+match="$(jq -r '.match' <<<"$pin")"
+
+set +e
+yad --title="$name" --window-icon="$(jq -r '.icon' <<<"$pin")" --mouse --fixed \
+    --width=220 --height=135 --undecorated --skip-taskbar \
+    --text="<b>$name</b>" \
+    --button="Close":10 --button="Terminate":20 --button="Unpin":30
+choice=$?
+set -e
+
+clients="$(hyprctl clients -j)"
+address="$(jq -r --arg re "$match" '
+    [.[] | select(((.class // "") + "\n" + (.initialClass // "")) | test($re; "i"))]
+    | sort_by(.focusHistoryID // 999999) | .[0].address // empty
+' <<<"$clients")"
+
+case "$choice" in
+    10)
+        [[ -n "$address" ]] || exit 0
+        state_dir="$HOME/.local/state/windows-taskbar/minimized"
+        key="$(printf '%s' "$match" | sha256sum | cut -d' ' -f1)"
+        mkdir -p "$state_dir"
+        printf '%s\n' "$address" >"$state_dir/$key"
+        hyprctl dispatch movetoworkspacesilent "special:minimized,address:$address" >/dev/null
+        ;;
+    20)
+        [[ -n "$address" ]] || exit 0
+        pid="$(jq -r --arg address "$address" '.[] | select(.address == $address) | .pid' <<<"$clients")"
+        [[ "$pid" =~ ^[0-9]+$ ]] && kill -KILL "$pid"
+        ;;
+    30) exec "$HOME/.local/bin/windows-taskbar-pins" remove "$id" ;;
+esac

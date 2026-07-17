@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+exec yad --calendar --title="Calendar" --mouse --fixed --undecorated --skip-taskbar \
+  --width=330 --height=300 --button="Close":0

@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+case "${1:-}" in
+    power)
+        if bluetoothctl show | grep -qi 'Powered: yes'; then bluetoothctl power off; else bluetoothctl power on; fi
+        ;;
+    scan) bluetoothctl --timeout 8 scan on ;;
+    connect)
+        address="${2:?missing device address}"
+        if bluetoothctl info "$address" | grep -qi 'Paired: yes'; then
+            bluetoothctl connect "$address"
+        else
+            bluetoothctl pairable on
+            bluetoothctl --agent NoInputNoOutput pair "$address"
+            bluetoothctl trust "$address"
+            bluetoothctl connect "$address"
+        fi
+        ;;
+    disconnect) bluetoothctl disconnect "${2:?missing device address}" ;;
+    remove) bluetoothctl remove "${2:?missing device address}" ;;
+    *) echo "usage: windows-bluetooth-action {power|scan|connect MAC|disconnect MAC|remove MAC}" >&2; exit 2 ;;
+esac

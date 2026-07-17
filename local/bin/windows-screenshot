@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+save_dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/Screenshots"
+mkdir -p "$save_dir"
+
+geometry="$(slurp)" || exit 0
+[[ -n "$geometry" ]] || exit 0
+
+file="$save_dir/Screenshot_$(date +%Y-%m-%d_%H-%M-%S).png"
+grim -g "$geometry" "$file"
+wl-copy < "$file"
+
+if [[ "${1:-}" == "--edit" ]] && command -v satty >/dev/null 2>&1; then
+    satty --filename "$file" --output-filename "$file" --copy-command wl-copy
+fi
+
+command -v notify-send >/dev/null 2>&1 && \
+    notify-send -a Screenshot -i "$file" "Screenshot saved" "$file"

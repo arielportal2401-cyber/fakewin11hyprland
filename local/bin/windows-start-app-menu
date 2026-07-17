@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+name="${1:?missing app name}"
+command="${2:?missing app command}"
+icon="${3:-application-x-executable}"
+match="${4:-}"
+
+set +e
+yad --title="$name" --window-icon="$icon" --mouse --fixed --undecorated --skip-taskbar \
+    --width=210 --height=112 --text="<b>$name</b>" \
+    --button="Open":10 --button="Pin to taskbar":20
+choice=$?
+set -e
+
+case "$choice" in
+    10)
+        if [[ -n "$match" ]]; then
+            exec "$HOME/.local/bin/windows-task-action" toggle "$match" /bin/bash -lc "$command"
+        else
+            hyprctl dispatch exec -- /bin/bash -lc "$command" >/dev/null
+        fi
+        ;;
+    20) exec "$HOME/.local/bin/windows-taskbar-pins" add "$name" "$command" "$icon" "$match" ;;
+esac

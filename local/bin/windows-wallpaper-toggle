@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+dark="$HOME/.local/share/windows11/wallpapers/windows-dark.jpg"
+blue="$HOME/.local/share/windows11/wallpapers/windows-blue.png"
+state_dir="$HOME/.local/state/windows11"
+state_file="$state_dir/wallpaper-variant"
+cache_dir="$HOME/.cache/windows11"
+cache_file="$cache_dir/current-wallpaper"
+
+mkdir -p "$state_dir" "$cache_dir"
+
+current="dark"
+if [[ -r "$state_file" ]]; then
+    read -r current < "$state_file" || true
+fi
+
+if [[ "$current" == "blue" ]]; then
+    next="dark"
+    image="$dark"
+else
+    next="blue"
+    image="$blue"
+fi
+
+awww img "$image" \
+    --transition-type fade \
+    --transition-fps 144 \
+    --transition-duration 0.35
+
+cp -- "$image" "$cache_file"
+printf '%s\n' "$next" > "$state_file"

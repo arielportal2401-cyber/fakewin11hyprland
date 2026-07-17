@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+match="${1:?missing class regex}"
+name="${2:-Application}"
+clients="$(hyprctl clients -j 2>/dev/null || printf '[]')"
+active="$(hyprctl activewindow -j 2>/dev/null || printf '{}')"
+if ! jq -e . >/dev/null 2>&1 <<<"$clients"; then clients='[]'; fi
+if ! jq -e . >/dev/null 2>&1 <<<"$active"; then active='{}'; fi
+
+running="$(jq -r --arg re "$match" '
+    any(.[]; ((.class // "") + "\n" + (.initialClass // "")) | test($re; "i"))
+' <<<"$clients")"
+focused="$(jq -r --arg re "$match" '
+    ((.class // "") + "\n" + (.initialClass // "")) | test($re; "i")
+' <<<"$active")"
+
+if [[ "$focused" == "true" ]]; then
+    class="active"
+elif [[ "$running" == "true" ]]; then
+    class="running"
+else
+    class="idle"
+fi
+
+jq -cn --arg text " " --arg class "$class" --arg tooltip "$name" \
+    '{text:$text,class:$class,tooltip:$tooltip}'
