@@ -117,6 +117,10 @@ Fullscreen taskbar visibility follows the focused workspace. Moving away from
 a fullscreen app shows the taskbar; returning to it hides the taskbar again.
 `Win + F` does nothing when no application window is focused.
 
+New application windows automatically join whichever `Win + Space` tiling mode
+is active. In Windows floating mode, they continue to open as normal floating
+windows.
+
 The taskbar keeps pinned apps centered and adds ten compact workspace tabs beside
 the weather widget. Click a number to switch workspaces; the active one gets a
 subtle Fluent-blue indicator.

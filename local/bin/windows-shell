@@ -7,15 +7,18 @@ WINDOWS_QML="$HOME/.config/quickshell/windows11/shell.qml"
 start_shell() {
     rm -f "$HOME/.local/state/windows11/taskbar-hidden"
     pkill -f "$HOME/.local/bin/windows-taskbar-watch" 2>/dev/null || true
+    pkill -f "$HOME/.local/bin/windows-layout-watch" 2>/dev/null || true
     pkill -f "$HOME/.config/hypr/scripts/quickshell/Shell.qml" 2>/dev/null || true
     WINDOWS_TASKBAR=waybar quickshell --no-duplicate --daemonize --path "$WINDOWS_QML" >/dev/null 2>&1
     pkill -f "$HOME/.config/waybar/windows11/config.jsonc" 2>/dev/null || true
     hyprctl dispatch exec -- "$HOME/.local/bin/windows-waybar" >/dev/null
     hyprctl dispatch exec -- "$HOME/.local/bin/windows-taskbar-watch" >/dev/null
+    hyprctl dispatch exec -- "$HOME/.local/bin/windows-layout-watch" >/dev/null
 }
 
 stop_shell() {
     pkill -f "$HOME/.local/bin/windows-taskbar-watch" 2>/dev/null || true
+    pkill -f "$HOME/.local/bin/windows-layout-watch" 2>/dev/null || true
     pkill -f "$WINDOWS_QML" 2>/dev/null || true
     pkill -f "$HOME/.config/waybar/windows11/config.jsonc" 2>/dev/null || true
 }

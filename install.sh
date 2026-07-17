@@ -484,6 +484,7 @@ for required_file in \
     "$HOME/.config/starship.toml" \
     "$HOME/.local/bin/windows-shell" \
     "$HOME/.local/bin/windows-workspace-cycle" \
+    "$HOME/.local/bin/windows-layout-watch" \
     "$HOME/.local/bin/windows-taskbar-watch"; do
     if [[ ! -e "$required_file" ]]; then
         failure "Installation verification failed: $required_file is missing."

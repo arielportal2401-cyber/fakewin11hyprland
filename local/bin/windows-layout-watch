@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+
+"""Make newly opened windows inherit the active Windows-rice layout mode."""
+
+import fcntl
+import json
+import os
+import socket
+import subprocess
+import time
+from pathlib import Path
+
+
+HOME = Path.home()
+STATE_DIR = HOME / ".local/state/windows11-rice"
+MODE_FILE = STATE_DIR / "layout-mode"
+LOCK_FILE = STATE_DIR / "layout-watch.lock"
+
+
+def current_mode():
+    try:
+        return MODE_FILE.read_text(encoding="utf-8").strip()
+    except OSError:
+        return "windows"
+
+
+def hyprctl(*arguments, capture=False):
+    return subprocess.run(
+        ["hyprctl", *arguments],
+        check=False,
+        stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        text=capture,
+    )
+
+
+def client_is_tiled(address):
+    result = hyprctl("clients", "-j", capture=True)
+    if result.returncode != 0:
+        return False
+    try:
+        clients = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return False
+    normalized = address.lower()
+    return any(
+        str(client.get("address", "")).lower() == normalized
+        and not client.get("floating", True)
+        for client in clients
+    )
+
+
+def tile_client(address):
+    if current_mode() == "windows":
+        return
+
+    if not address.startswith("0x"):
+        address = f"0x{address}"
+
+    # openwindow can arrive a fraction before the client accepts dispatches.
+    for _ in range(12):
+        if current_mode() == "windows":
+            return
+        hyprctl("dispatch", "settiled", f"address:{address}")
+        if client_is_tiled(address):
+            return
+        time.sleep(0.05)
+
+
+def tile_existing_clients():
+    if current_mode() == "windows":
+        return
+    result = hyprctl("clients", "-j", capture=True)
+    if result.returncode != 0:
+        return
+    try:
+        clients = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return
+    for client in clients:
+        workspace = client.get("workspace", {}).get("id", 0)
+        address = str(client.get("address", ""))
+        if 1 <= workspace <= 10 and address:
+            tile_client(address)
+
+
+def event_socket():
+    runtime = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"))
+    signature = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE", "")
+    return runtime / "hypr" / signature / ".socket2.sock"
+
+
+def watch():
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+        connection.connect(str(event_socket()))
+        tile_existing_clients()
+        pending = b""
+        while True:
+            chunk = connection.recv(8192)
+            if not chunk:
+                return
+            pending += chunk
+            lines = pending.split(b"\n")
+            pending = lines.pop()
+            for line in lines:
+                name, separator, payload = line.partition(b">>")
+                if separator and name == b"openwindow":
+                    address = payload.split(b",", 1)[0].decode(errors="replace")
+                    if address:
+                        tile_client(address)
+
+
+def main():
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    with LOCK_FILE.open("w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return
+
+        while True:
+            try:
+                watch()
+            except (FileNotFoundError, ConnectionError, OSError):
+                pass
+            time.sleep(0.5)
+
+
+if __name__ == "__main__":
+    main()
