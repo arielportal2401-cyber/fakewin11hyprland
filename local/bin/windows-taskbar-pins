@@ -188,11 +188,56 @@ def cache_icon(identifier, icon):
     destination = ICON_CACHE / f"{identifier}.png"
     source = find_icon(icon) or find_icon("application-x-executable")
     if source:
-        subprocess.run([
-            "magick", str(source), "-background", "none", "-resize", "25x25",
+        conversion = [
+            # Background must be set before SVG decoding. Setting it after the
+            # input silently rasterizes transparent SVG icons onto white.
+            "magick", "-background", "none", str(source), "-alpha", "on",
+        ]
+        if source.suffix.casefold() in {".jpg", ".jpeg"}:
+            # JPEG has no alpha channel. Remove only the near-white area joined
+            # to its outside edge, leaving white details inside the icon alone.
+            conversion += [
+                "-bordercolor", "white", "-border", "1", "-channel", "RGBA",
+                "-fuzz", "8%", "-fill", "none", "-draw", "color 0,0 floodfill",
+                "-shave", "1x1",
+            ]
+        conversion += [
+            "-resize", "25x25",
             "-gravity", "center", "-extent", "32x32", str(destination),
-        ], check=False)
+        ]
+        subprocess.run(conversion, check=False)
     return str(destination if destination.exists() else source or "")
+
+
+def icon_hint(pin):
+    saved = pin.get("source_icon", "")
+    if saved:
+        return saved
+
+    words = shlex.split(pin.get("command", ""))
+    for index, word in enumerate(words[:-1]):
+        if Path(word).name == "flatpak" and words[index + 1] == "run":
+            for candidate in words[index + 2:]:
+                if not candidate.startswith("-") and "." in candidate:
+                    return candidate
+    if words:
+        return Path(words[0]).name
+    return pin.get("name", "application-x-executable")
+
+
+def refresh_cached_icons(pins):
+    changed = False
+    for pin in pins:
+        path = Path(pin.get("icon", ""))
+        if path.parent != ICON_CACHE:
+            continue
+        source_icon = icon_hint(pin)
+        pin["icon"] = cache_icon(pin["id"], source_icon)
+        if pin.get("source_icon") != source_icon:
+            pin["source_icon"] = source_icon
+            changed = True
+    if changed:
+        save_pins(pins)
 
 
 def default_match(name, command):
@@ -220,6 +265,7 @@ def add_pin(name, command, icon, match=""):
         "match": match or default_match(name, command),
         "command": command,
         "icon": cache_icon(identifier, icon),
+        "source_icon": icon,
     })
     save_pins(pins)
     regenerate(pins)
@@ -231,6 +277,7 @@ def main():
     command = sys.argv[1] if len(sys.argv) > 1 else "generate"
     pins = load_pins()
     if command == "generate":
+        refresh_cached_icons(pins)
         regenerate(pins)
         if "--restart" in sys.argv[2:]:
             restart_bar()
