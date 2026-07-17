@@ -107,7 +107,7 @@ current Linux account.
 | `Win + Tab` | Open the window switcher |
 | `Win + Left/Right` | Snap the active window |
 | `Win + F` | Toggle fullscreen and taskbar visibility |
-| `Win + Space` | Cycle floating, golden-corner, master, stack and scrolling layouts |
+| `Win + Space` | Cycle floating, spiral, master, stack and scrolling layouts |
 | `Win + mouse wheel` | Cycle quickly through workspaces |
 | `Win + Shift + S` | Select a screenshot region |
 | `Win + L` | Lock with the normal account password |

@@ -6,6 +6,12 @@ WINDOWS_QML="$HOME/.config/quickshell/windows11/shell.qml"
 
 start_shell() {
     rm -f "$HOME/.local/state/windows11/taskbar-hidden"
+    layout_mode="$(sed -n '1p' "$HOME/.local/state/windows11-rice/layout-mode" 2>/dev/null || true)"
+    if [[ "$layout_mode" == "dwindle" ]]; then
+        hyprctl keyword 'windowrule[spiral_split_focus]:enable true' >/dev/null 2>&1 || true
+    else
+        hyprctl keyword 'windowrule[spiral_split_focus]:enable false' >/dev/null 2>&1 || true
+    fi
     pkill -f "$HOME/.local/bin/windows-taskbar-watch" 2>/dev/null || true
     pkill -f "$HOME/.local/bin/windows-layout-watch" 2>/dev/null || true
     pkill -f "$HOME/.config/hypr/scripts/quickshell/Shell.qml" 2>/dev/null || true

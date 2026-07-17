@@ -46,6 +46,10 @@ float_all() {
     done < <(window_addresses)
 }
 
+# Only Spiral mode suppresses Hyprland's early focus. Every other mode keeps
+# normal application focus behavior.
+hyprctl keyword 'windowrule[spiral_split_focus]:enable false' >/dev/null 2>&1 || true
+
 case "$target" in
     windows)
         hyprctl keyword general:layout dwindle >/dev/null
@@ -56,17 +60,16 @@ case "$target" in
         ;;
     dwindle)
         hyprctl keyword 'windowrule[windows_floating_desktop]:enable false' >/dev/null
+        hyprctl keyword 'windowrule[spiral_split_focus]:enable true' >/dev/null
         hyprctl keyword general:layout dwindle >/dev/null
-        hyprctl keyword dwindle:smart_split true >/dev/null
-        # Hyprland expresses split ratios on a 0..2 scale. 1.236068 maps to
-        # 61.8034% / 38.1966%, the golden ratio, rather than 1.618034.
-        hyprctl keyword dwindle:default_split_ratio 1.236068 >/dev/null
-        hyprctl keyword dwindle:split_bias 1 >/dev/null
-        # Reinsert existing windows so every node is created with the new
-        # ratio; merely changing the default only affects future nodes.
-        float_all
-        tile_all
-        label="Golden corner split"
+        hyprctl keyword dwindle:smart_split false >/dev/null
+        hyprctl keyword dwindle:preserve_split true >/dev/null
+        hyprctl keyword dwindle:permanent_direction_override true >/dev/null
+        hyprctl keyword dwindle:use_active_for_splits true >/dev/null
+        hyprctl keyword dwindle:default_split_ratio 1 >/dev/null
+        hyprctl keyword dwindle:split_bias 0 >/dev/null
+        "$HOME/.local/bin/windows-layout-watch" rebuild-spiral
+        label="Spiral split: right, down, left, up"
         color="66eee5"
         ;;
     master-center)

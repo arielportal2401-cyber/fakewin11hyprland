@@ -486,6 +486,7 @@ for required_file in \
     "$HOME/.config/kitty/resize_font.py" \
     "$HOME/.config/starship.toml" \
     "$HOME/.local/bin/windows-shell" \
+    "$HOME/.local/bin/windows-command-exec" \
     "$HOME/.local/bin/windows-flatpak" \
     "$HOME/.local/bin/windows-workspace-cycle" \
     "$HOME/.local/bin/windows-layout-watch" \

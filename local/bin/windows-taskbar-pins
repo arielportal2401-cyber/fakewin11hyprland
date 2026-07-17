@@ -92,7 +92,7 @@ def regenerate(pins):
 
     for pin in pins:
         module = f"custom/pin-{pin['id']}"
-        launch = ["/bin/sh", "-lc", pin["command"]]
+        launch = [HOME / ".local/bin/windows-command-exec", pin["command"]]
         config[module] = {
             "format": " ",
             "return-type": "json",

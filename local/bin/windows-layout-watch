@@ -7,6 +7,7 @@ import json
 import os
 import socket
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -15,6 +16,8 @@ HOME = Path.home()
 STATE_DIR = HOME / ".local/state/windows11-rice"
 MODE_FILE = STATE_DIR / "layout-mode"
 LOCK_FILE = STATE_DIR / "layout-watch.lock"
+SPIRAL_FILE = STATE_DIR / "spiral-directions.json"
+SPIRAL_DIRECTIONS = ("r", "d", "l", "u")
 
 
 def current_mode():
@@ -50,7 +53,102 @@ def client_is_tiled(address):
     )
 
 
-def tile_client(address):
+def clients_json():
+    result = hyprctl("clients", "-j", capture=True)
+    if result.returncode != 0:
+        return []
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return []
+
+
+def active_workspace():
+    result = hyprctl("activeworkspace", "-j", capture=True)
+    if result.returncode != 0:
+        return 0
+    try:
+        return int(json.loads(result.stdout).get("id", 0))
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return 0
+
+
+def load_spiral_state():
+    try:
+        data = json.loads(SPIRAL_FILE.read_text(encoding="utf-8"))
+        return {str(key): int(value) % 4 for key, value in data.items()}
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return {}
+
+
+def save_spiral_state(state):
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    temporary = SPIRAL_FILE.with_suffix(".tmp")
+    temporary.write_text(json.dumps(state, sort_keys=True) + "\n", encoding="utf-8")
+    temporary.replace(SPIRAL_FILE)
+
+
+def workspace_counts(clients=None):
+    counts = {}
+    for client in clients if clients is not None else clients_json():
+        workspace = int(client.get("workspace", {}).get("id", 0))
+        if 1 <= workspace <= 10 and client.get("mapped", True):
+            counts[workspace] = counts.get(workspace, 0) + 1
+    return counts
+
+
+def ensure_spiral_state():
+    state = load_spiral_state()
+    changed = False
+    for workspace, count in workspace_counts().items():
+        key = str(workspace)
+        if key not in state:
+            state[key] = max(0, count - 1) % 4
+            changed = True
+    if changed:
+        save_spiral_state(state)
+    return state
+
+
+def apply_spiral_direction(workspace=None):
+    if current_mode() != "dwindle":
+        return
+    workspace = workspace or active_workspace()
+    if not workspace:
+        return
+    state = ensure_spiral_state()
+    index = state.get(str(workspace), 0) % 4
+    hyprctl("dispatch", "layoutmsg", f"preselect {SPIRAL_DIRECTIONS[index]}")
+
+
+def advance_spiral(address):
+    clients = clients_json()
+    normalized = address.lower()
+    client = next(
+        (item for item in clients if str(item.get("address", "")).lower() == normalized),
+        None,
+    )
+    if not client:
+        return
+    workspace = int(client.get("workspace", {}).get("id", 0))
+    if not 1 <= workspace <= 10:
+        return
+
+    count = workspace_counts(clients).get(workspace, 0)
+    state = load_spiral_state()
+    key = str(workspace)
+    if count <= 1:
+        state[key] = 0
+    elif key in state:
+        state[key] = (state[key] + 1) % 4
+    else:
+        state[key] = (count - 1) % 4
+    save_spiral_state(state)
+    if workspace == active_workspace():
+        apply_spiral_direction(workspace)
+
+
+def tile_client(address, advance=False):
     if current_mode() == "windows":
         return
 
@@ -63,6 +161,11 @@ def tile_client(address):
             return
         hyprctl("dispatch", "settiled", f"address:{address}")
         if client_is_tiled(address):
+            if advance and current_mode() == "dwindle":
+                # The next spiral split must cut the window that just opened,
+                # even when an application declines focus on map.
+                hyprctl("dispatch", "focuswindow", f"address:{address}")
+                advance_spiral(address)
             return
         time.sleep(0.05)
 
@@ -84,6 +187,48 @@ def tile_existing_clients():
             tile_client(address)
 
 
+def rebuild_spiral():
+    clients = [
+        client for client in clients_json()
+        if 1 <= int(client.get("workspace", {}).get("id", 0)) <= 10
+    ]
+    focused = ""
+    active_result = hyprctl("activewindow", "-j", capture=True)
+    if active_result.returncode == 0:
+        try:
+            focused = str(json.loads(active_result.stdout).get("address", ""))
+        except json.JSONDecodeError:
+            pass
+
+    for client in clients:
+        address = str(client.get("address", ""))
+        if address:
+            hyprctl("dispatch", "setfloating", f"address:{address}")
+
+    grouped = {}
+    for client in clients:
+        workspace = int(client.get("workspace", {}).get("id", 0))
+        grouped.setdefault(workspace, []).append(client)
+
+    state = {}
+    for workspace in sorted(grouped):
+        windows = grouped[workspace]
+        for index, client in enumerate(windows):
+            address = str(client.get("address", ""))
+            if not address:
+                continue
+            if index > 0:
+                direction = SPIRAL_DIRECTIONS[(index - 1) % 4]
+                hyprctl("dispatch", "layoutmsg", f"preselect {direction}")
+            hyprctl("dispatch", "settiled", f"address:{address}")
+        state[str(workspace)] = max(0, len(windows) - 1) % 4
+
+    save_spiral_state(state)
+    if focused:
+        hyprctl("dispatch", "focuswindow", f"address:{focused}")
+    apply_spiral_direction()
+
+
 def event_socket():
     runtime = Path(os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"))
     signature = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE", "")
@@ -94,6 +239,7 @@ def watch():
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
         connection.connect(str(event_socket()))
         tile_existing_clients()
+        apply_spiral_direction()
         pending = b""
         while True:
             chunk = connection.recv(8192)
@@ -107,11 +253,16 @@ def watch():
                 if separator and name == b"openwindow":
                     address = payload.split(b",", 1)[0].decode(errors="replace")
                     if address:
-                        tile_client(address)
+                        tile_client(address, advance=True)
+                elif separator and name in {b"workspace", b"workspacev2", b"focusedmon"}:
+                    apply_spiral_direction()
 
 
 def main():
     STATE_DIR.mkdir(parents=True, exist_ok=True)
+    if len(sys.argv) > 1 and sys.argv[1] == "rebuild-spiral":
+        rebuild_spiral()
+        return
     with LOCK_FILE.open("w") as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)

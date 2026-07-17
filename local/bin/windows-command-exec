@@ -1,0 +1,20 @@
+#!/usr/bin/env python3
+
+"""Execute a desktop command without routing it through a login shell."""
+
+import os
+import shlex
+import sys
+
+
+if len(sys.argv) < 2:
+    raise SystemExit("usage: windows-command-exec COMMAND")
+
+# Hyprland reparses `dispatch exec` and may expand a single command string back
+# into its original argv. Use that vector directly when it does; retain shlex
+# parsing for ordinary direct calls where the command remains one argument.
+arguments = sys.argv[1:] if len(sys.argv) > 2 else shlex.split(sys.argv[1])
+if not arguments:
+    raise SystemExit("empty command")
+
+os.execvpe(arguments[0], arguments, os.environ)

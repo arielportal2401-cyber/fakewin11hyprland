@@ -335,13 +335,14 @@ import Quickshell
       }
 
       function launchApp(command, match) {
+          const executor = Quickshell.env("HOME") + "/.local/bin/windows-command-exec"
           if (match && match.length > 0) {
               Quickshell.execDetached([
                   Quickshell.env("HOME") + "/.local/bin/windows-task-action",
-                  "toggle", match, "/bin/bash", "-lc", command
+                  "activate", match, executor, command
               ])
           } else {
-              Quickshell.execDetached(["hyprctl", "dispatch", "exec", "--", "/bin/bash", "-lc", command])
+              Quickshell.execDetached(["hyprctl", "dispatch", "exec", "--", executor, command])
           }
           search.text = ""
           root.startOpen = false

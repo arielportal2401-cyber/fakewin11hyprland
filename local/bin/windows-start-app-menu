@@ -16,10 +16,11 @@ set -e
 
 case "$choice" in
     10)
+        executor="$HOME/.local/bin/windows-command-exec"
         if [[ -n "$match" ]]; then
-            exec "$HOME/.local/bin/windows-task-action" toggle "$match" /bin/bash -lc "$command"
+            exec "$HOME/.local/bin/windows-task-action" activate "$match" "$executor" "$command"
         else
-            hyprctl dispatch exec -- /bin/bash -lc "$command" >/dev/null
+            hyprctl dispatch exec -- "$executor" "$command" >/dev/null
         fi
         ;;
     20) exec "$HOME/.local/bin/windows-taskbar-pins" add "$name" "$command" "$icon" "$match" ;;
