@@ -22,7 +22,7 @@ for _ in {1..30}; do
     if findmnt -rn /run/user/"$(id -u)"/doc >/dev/null 2>&1; then
         mkdir -p "$(dirname "$marker")"
         : > "$marker"
-        notify-send -a "Windows shell" "Flatpak repaired" "Document portal mounted successfully"
+        hyprctl notify 1 3000 "rgb(60cdff)" "Flatpak document portal repaired" >/dev/null 2>&1 || true
         printf '\nSuccess: Flatpak document portal is mounted.\n'
         printf 'Press Enter to close this window.\n'
         read -r

@@ -17,7 +17,7 @@ for candidate in \
 done
 
 if [[ -z "${flatpak_bin:-}" ]]; then
-    notify-send -a "Windows shell" "Flatpak" "Flatpak is not installed"
+    hyprctl notify 3 3500 "rgb(ff9999)" "Flatpak is not installed" >/dev/null 2>&1 || true
     exit 127
 fi
 
