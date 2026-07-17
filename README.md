@@ -1,92 +1,170 @@
-# Windows 11, except it is Hyprland
+# Fake Windows 11 for Hyprland
 
-I wanted Hyprland to feel close enough to Windows 11 that I could complain
-about Windows while still using Linux. This is the result.
+Windows 11 looks, Linux behavior underneath. This rice uses a floating
+Hyprland layout, a Windows-style Waybar taskbar, Quickshell menus, working app
+pinning, quick settings, screenshots, snapping, weather, wallpaper switching
+and a matching Fastfetch setup.
 
-It is a floating Hyprland desktop with a Windows-style Waybar taskbar, Start
-menu, quick settings, app pinning, Wi-Fi/Bluetooth controls, weather, wallpaper
-switching, snapping, a matching Fastfetch config, and a small profile switcher
-for escaping back to your old rice when something inevitably breaks.
+> [!IMPORTANT]
+> The installer backs up the current desktop before changing it. The Windows
+> profile and original profile are kept in separate directories.
 
-This is a personal rice built while learning. It is not a desktop environment,
-and a few menus are deliberately tiny instead of trying to clone every page of
-Windows Settings.
+---
 
-## Install
+# BEGINNER QUICK INSTALL
 
-Read the script first. It copies files into `~/.config` and `~/.local/bin`, but
-backs up the existing Hyprland, Waybar, and Windows Quickshell files before it
-does that.
+Copy these three commands into a terminal:
 
 ```bash
-git clone https://github.com/arielportal2401-cyber/fakewin11hyprland.git windows11-hyprland-dotfiles
-cd windows11-hyprland-dotfiles
-chmod +x install.sh
+git clone https://github.com/arielportal2401-cyber/fakewin11hyprland.git
+cd fakewin11hyprland
 ./install.sh
 ```
 
-Backups go under `~/.local/state/windows11-rice/backups/`.
+That is the normal installation. The script explains what it will do, asks once
+before changing anything, and handles the rest automatically.
 
-The installer checks every runtime command and offers to install only what is
-missing. It supports pacman, apt, DNF, zypper, XBPS, APK and Nix. Use
-`./install.sh --yes` for a non-interactive dependency install. If a native
-repository lacks a current Hyprland or Quickshell package, an existing Nix
-installation is used as a fallback and the result is verified before any
-dotfiles are copied.
+> [!WARNING]
+> Do **not** run `sudo ./install.sh`. Run it as the normal desktop user. The
+> installer requests sudo itself only when the package manager needs it. This
+> keeps the configuration and lock screen attached to the correct user account.
 
-## Dependencies
+For a completely non-interactive install:
 
-The installer handles these automatically when the package manager provides
-them:
+```bash
+./install.sh --yes
+```
 
-- Hyprland, Quickshell, Waybar and Hyprlock
-- Rofi, Yad, jq and Python 3
-- awww, grim, slurp and wl-clipboard
-- Thunar and Kitty
-- iwd/`iwctl` for Wi-Fi and BlueZ/`bluetoothctl` for Bluetooth
-- Fastfetch for the matching terminal system summary
-- `pavucontrol`, `playerctl`, `brightnessctl`, `satty` and `notify-send` for the
-  optional controls and screenshot editing
+## What the installer does automatically
 
-Weather uses Open-Meteo without an API key. Change
-`~/.config/windows11/location.json` after installation.
+1. Detects installed programs.
+2. Installs only missing dependencies.
+3. Verifies that every required command is actually available.
+4. Creates a timestamped backup of the existing desktop.
+5. Saves the existing Hyprland setup as the **ORIGINAL** profile when possible.
+6. Installs the **WINDOWS** profile separately.
+7. Replaces template paths with the current user's real home directory.
+8. Checks the installed files and reloads Hyprland.
 
-## Shortcuts
+Supported package managers: Pacman, APT, DNF, Zypper, XBPS, APK and Nix. If a
+native repository is missing a current package and Nix is already installed,
+the installer tries Nix only for the unresolved commands.
+
+---
+
+# THE TWO PROFILES — KEPT SEPARATE
+
+```text
+~/.config/hypr/profiles/
+├── original/     your previous Hyprland config and keybindings
+└── windows11/    this rice and its Windows-style keybindings
+```
+
+Switch the whole desktop, including its keybindings:
+
+```bash
+hypr-profile-switch windows11
+hypr-profile-switch original
+```
+
+The original option appears only when the installer finds an existing modular
+Hyprland config. Either way, a complete timestamped backup is saved under:
+
+```text
+~/.local/state/windows11-rice/backups/
+```
+
+The latest backup path is also recorded in:
+
+```text
+~/.local/state/windows11-rice/latest-backup
+```
+
+---
+
+# PASSWORD AND LOCK SCREEN
+
+`Win + L` uses Hyprlock and PAM. Enter the same password used to log into the
+current Linux account.
+
+- There is no default password from this repository.
+- The installer never reads or stores a password.
+- No password, token, Wi-Fi secret or API key is committed to GitHub.
+
+---
+
+# FIRST THINGS TO TRY
 
 | Shortcut | Action |
 | --- | --- |
-| `Win` | Start menu |
-| `Win + E` | File Explorer |
-| `Win + Tab` | Window switcher |
-| `Win + Left/Right` | Snap window |
-| `Win + F` | Toggle fullscreen and taskbar |
+| `Win` | Open Start |
+| `Win + E` | Open File Explorer |
+| `Win + Tab` | Open the window switcher |
+| `Win + Left/Right` | Snap the active window |
+| `Win + F` | Toggle fullscreen and taskbar visibility |
 | `Win + Shift + S` | Select a screenshot region |
-| `Win + L` | Lock |
+| `Win + L` | Lock with the normal account password |
+| `Alt + F4` | Close the active window |
 
-The Windows shortcuts live only in the Windows profile. Run
-`hypr-profile-switch original` or `hypr-profile-switch windows11` to switch the
-whole config, including keybindings.
+Fullscreen taskbar visibility follows the focused workspace. Moving away from
+a fullscreen app shows the taskbar; returning to it hides the taskbar again.
+`Win + F` does nothing when no application window is focused.
 
-## Things you will probably edit
+---
 
-- Default pinned apps: `local/bin/windows-taskbar-pins`
-- Start menu apps: `config/quickshell/windows11/shell.qml`
-- Taskbar: `config/waybar/windows11/`
-- Keyboard layout and monitors: `config/hypr/profiles/windows11/config/`
+# FEATURES AND DEPENDENCIES
+
+The automatic installer provides:
+
+- Hyprland, Hyprlock, Quickshell, Waybar and Rofi
+- PipeWire audio tools and Hyprland desktop portals for screen sharing
+- awww wallpaper handling
+- grim, slurp, Satty and wl-clipboard screenshots
+- iwd Wi-Fi and BlueZ Bluetooth command-line backends
+- Thunar, Kitty, Fastfetch, Yad, jq and Python
+- notification, brightness, media, clipboard and icon helpers
+
+The Wi-Fi controls currently use iwd rather than NetworkManager. On a system
+where NetworkManager owns Wi-Fi, install iwd and switch backends deliberately;
+the installer will not disconnect an active network behind your back.
+
+Weather uses Open-Meteo without an API key. Change the example location here:
+
+```text
+~/.config/windows11/location.json
+```
+
+---
+
+# CUSTOMIZATION — ADVANCED
+
+You do not need this section to install the rice.
+
+| What to change | Repository path |
+| --- | --- |
+| Default pinned apps | `local/bin/windows-taskbar-pins` |
+| Start menu apps | `config/quickshell/windows11/shell.qml` |
+| Taskbar layout | `config/waybar/windows11/config.jsonc` |
+| Taskbar appearance | `config/waybar/windows11/style.css` |
+| Keybindings | `config/hypr/profiles/windows11/config/keybindings.conf` |
+| Monitors | `config/hypr/profiles/windows11/config/monitors.conf` |
+| Keyboard layout | `config/hypr/profiles/windows11/config/settings.conf` |
 
 ## Known rough edges
 
-- Network controls currently expect iwd rather than NetworkManager.
-- The notification button is a minimal panel, not full notification history.
-- Pinned app matching depends on the app's Wayland class. Weird launchers may
-  need their match expression adjusted.
-- The default app list contains software I use; remove whatever you do not.
+- The notification button is a small panel, not complete notification history.
+- Pinned app matching depends on the application's Wayland class.
+- The default app list contains personal choices; remove anything not installed.
+- Hyprland moves quickly. Arch and NixOS generally provide the least painful
+  package experience.
 
-## Credits
+---
+
+# CREDITS
 
 The modular Hyprland base was derived from ilyamiro's dotfiles. Fluent-style
 icons and Windows visual references belong to their respective creators and are
-not covered by the MIT license for the scripts/configuration.
+not covered by the MIT license for the scripts and configuration.
 
 Windows is a Microsoft trademark. This project is unofficial and is not
 affiliated with Microsoft.

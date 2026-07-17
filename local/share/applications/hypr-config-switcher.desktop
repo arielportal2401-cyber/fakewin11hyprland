@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Desktop Style Switcher
+Comment=Switch between Windows 11 and original Hyprland profiles
+Exec=@HOME@/.local/bin/hypr-config-switcher
+Icon=desktop-style-switcher
+Terminal=false
+Categories=Settings;DesktopSettings;
+StartupNotify=true

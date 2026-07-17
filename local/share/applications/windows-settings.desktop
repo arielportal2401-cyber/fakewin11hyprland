@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Settings
+Comment=Windows desktop settings
+Exec=@HOME@/.local/bin/windows-settings
+Icon=preferences-system
+Terminal=false
+Categories=Settings;
+StartupNotify=false

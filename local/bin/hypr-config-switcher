@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+
+state_file="$HOME/.local/state/hypr-profile-switcher/current"
+current="windows11"
+[[ -r "$state_file" ]] && current="$(<"$state_file")"
+
+buttons=(--button="Windows 11":10)
+message="Each profile loads its own shell, layout rules and keybindings."
+if [[ -d "$HOME/.config/hypr/profiles/original/config" ]]; then
+    buttons+=(--button="Original Hyprland":20)
+else
+    message="No previous Hyprland profile was found. The Windows profile is the only installed profile."
+fi
+buttons+=(--button="Cancel":1)
+
+set +e
+yad \
+    --title="Desktop Style Switcher" \
+    --window-icon="$HOME/.local/share/icons/hicolor/256x256/apps/desktop-style-switcher.png" \
+    --width=440 \
+    --height=230 \
+    --center \
+    --fixed \
+    --text="<span size='x-large'><b>Choose your desktop</b></span>\n\nCurrent profile: <b>${current}</b>\n\n${message}" \
+    "${buttons[@]}"
+result=$?
+set -e
+
+case "$result" in
+    10) exec "$HOME/.local/bin/hypr-profile-switch" windows11 ;;
+    20) exec "$HOME/.local/bin/hypr-profile-switch" original ;;
+    *) exit 0 ;;
+esac
