@@ -2,28 +2,18 @@
 
 set -euo pipefail
 
-fullscreen="$(hyprctl activewindow -j | jq -r '.fullscreen // .fullscreenClient // 0')"
-bar_config="$HOME/.config/waybar/windows11/config.jsonc"
-bar_pattern="^waybar .*--config $bar_config"
-state_dir="$HOME/.local/state/windows11"
-hidden_state="$state_dir/taskbar-hidden"
+window="$(hyprctl activewindow -j)"
+address="$(jq -r '.address // empty' <<<"$window")"
 
-mkdir -p "$state_dir"
+[[ -n "$address" && "$address" != "0x0" ]] || exit 0
+
+fullscreen="$(jq -r '.fullscreen // .fullscreenClient // 0' <<<"$window")"
 
 if [[ "$fullscreen" == "0" ]]; then
     hyprctl dispatch fullscreenstate 2 2 >/dev/null
-    if pgrep -f "$bar_pattern" >/dev/null; then
-        pkill -USR1 -f "$bar_pattern" 2>/dev/null || true
-    fi
-    : > "$hidden_state"
 else
     hyprctl dispatch fullscreenstate 0 0 >/dev/null
-    if pgrep -f "$bar_pattern" >/dev/null; then
-        if [[ -e "$hidden_state" ]]; then
-            pkill -USR1 -f "$bar_pattern" 2>/dev/null || true
-        fi
-    else
-        hyprctl dispatch exec -- "$HOME/.local/bin/windows-waybar" >/dev/null
-    fi
-    rm -f "$hidden_state"
 fi
+
+sleep 0.05
+exec "$HOME/.local/bin/windows-taskbar-sync"
