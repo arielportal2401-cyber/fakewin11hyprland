@@ -15,6 +15,15 @@ import Quickshell
       property bool wifiDetailsOpen: false
       property bool bluetoothDetailsOpen: false
       property bool settingsDetailsOpen: false
+      property bool calendarOpen: false
+      property bool notificationsOpen: false
+      property bool powerOpen: false
+      property bool trayOpen: false
+      property bool doNotDisturb: false
+      property int calendarMonth: currentTime.getMonth()
+      property int calendarYear: currentTime.getFullYear()
+      readonly property var calendarMonths: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+      readonly property var calendarWeekdays: ["S", "M", "T", "W", "T", "F", "S"]
       property string wifiInterface: ""
       property string wifiConnected: ""
       property date currentTime: new Date()
@@ -29,6 +38,13 @@ import Quickshell
 
       ListModel { id: wifiModel }
       ListModel { id: bluetoothModel }
+
+      Process {
+          id: dndStateLoader
+          running: true
+          command: ["/bin/bash", "-lc", "test -e \"$HOME/.local/state/windows11/do-not-disturb\" && printf true || printf false"]
+          stdout: StdioCollector { onStreamFinished: root.doNotDisturb = text.trim() === "true" }
+      }
 
       Timer {
           interval: 1000
@@ -173,6 +189,34 @@ import Quickshell
       function setVolume(value) {
           const safeValue = Math.max(0, Math.min(1, value))
           Quickshell.execDetached(["wpctl", "set-volume", "@DEFAULT_AUDIO_SINK@", safeValue.toFixed(2)])
+      }
+
+      function calendarDay(index) {
+          const first = new Date(root.calendarYear, root.calendarMonth, 1).getDay()
+          const count = new Date(root.calendarYear, root.calendarMonth + 1, 0).getDate()
+          const day = index - first + 1
+          return day >= 1 && day <= count ? day : 0
+      }
+
+      function calendarIsToday(day) {
+          return day > 0
+              && day === root.currentTime.getDate()
+              && root.calendarMonth === root.currentTime.getMonth()
+              && root.calendarYear === root.currentTime.getFullYear()
+      }
+
+      function moveCalendarMonth(offset) {
+          const changed = new Date(root.calendarYear, root.calendarMonth + offset, 1)
+          root.calendarYear = changed.getFullYear()
+          root.calendarMonth = changed.getMonth()
+      }
+
+      function toggleDoNotDisturb() {
+          root.doNotDisturb = !root.doNotDisturb
+          Quickshell.execDetached([
+              Quickshell.env("HOME") + "/.local/bin/windows-notification-state",
+              root.doNotDisturb ? "on" : "off"
+          ])
       }
 
       Process {
@@ -335,11 +379,19 @@ import Quickshell
 
           function toggle(): void {
               root.startOpen = !root.startOpen
+              root.calendarOpen = false
+              root.notificationsOpen = false
+              root.powerOpen = false
+              root.trayOpen = false
           }
 
           function toggleQuickSettings(): void {
               root.quickSettingsOpen = !root.quickSettingsOpen
               root.startOpen = false
+              root.calendarOpen = false
+              root.notificationsOpen = false
+              root.powerOpen = false
+              root.trayOpen = false
               if (!root.quickSettingsOpen)
                   root.wifiDetailsOpen = false
               if (!root.quickSettingsOpen)
@@ -351,6 +403,7 @@ import Quickshell
           function openWifi(): void {
               root.quickSettingsOpen = true
               root.startOpen = false
+              root.calendarOpen = false
               root.wifiDetailsOpen = true
               root.refreshWifi()
               root.scanWifi()
@@ -359,6 +412,7 @@ import Quickshell
           function openBluetooth(): void {
               root.quickSettingsOpen = true
               root.startOpen = false
+              root.calendarOpen = false
               root.wifiDetailsOpen = false
               root.bluetoothDetailsOpen = true
               root.refreshBluetooth()
@@ -368,7 +422,42 @@ import Quickshell
           function openSettings(): void {
               root.quickSettingsOpen = true
               root.startOpen = false
+              root.calendarOpen = false
               root.openSettingsPage("home")
+          }
+
+          function toggleCalendar(): void {
+              root.calendarOpen = !root.calendarOpen
+              root.startOpen = false
+              root.quickSettingsOpen = false
+              root.wifiDetailsOpen = false
+              root.bluetoothDetailsOpen = false
+              root.settingsDetailsOpen = false
+              root.notificationsOpen = false
+              root.powerOpen = false
+              root.trayOpen = false
+              if (root.calendarOpen) {
+                  root.calendarMonth = root.currentTime.getMonth()
+                  root.calendarYear = root.currentTime.getFullYear()
+              }
+          }
+
+          function toggleNotifications(): void {
+              root.notificationsOpen = !root.notificationsOpen
+              root.startOpen = false; root.quickSettingsOpen = false; root.calendarOpen = false
+              root.powerOpen = false; root.trayOpen = false
+          }
+
+          function togglePower(): void {
+              root.powerOpen = !root.powerOpen
+              root.startOpen = false; root.quickSettingsOpen = false; root.calendarOpen = false
+              root.notificationsOpen = false; root.trayOpen = false
+          }
+
+          function toggleTray(): void {
+              root.trayOpen = !root.trayOpen
+              root.startOpen = false; root.quickSettingsOpen = false; root.calendarOpen = false
+              root.notificationsOpen = false; root.powerOpen = false
           }
       }
 
@@ -654,15 +743,28 @@ import Quickshell
           }
           implicitWidth: 360
           implicitHeight: root.settingsDetailsOpen ? 520 : (root.wifiDetailsOpen || root.bluetoothDetailsOpen) ? 420 : 286
+          Behavior on implicitHeight {
+              NumberAnimation { duration: 240; easing.type: Easing.OutCubic }
+          }
           exclusiveZone: 0
           color: "transparent"
 
           Rectangle {
+              id: quickSettingsSurface
               anchors.fill: parent
               radius: 10
-              color: "#df202631"
+              color: "#aa202631"
               border.width: 1
               border.color: "#38ffffff"
+              transformOrigin: Item.BottomRight
+              scale: root.quickSettingsOpen ? 1 : 0.88
+              opacity: root.quickSettingsOpen ? 1 : 0
+              Behavior on scale {
+                  NumberAnimation { duration: 260; easing.type: Easing.OutBack }
+              }
+              Behavior on opacity {
+                  NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+              }
 
               Grid {
                   visible: !root.wifiDetailsOpen && !root.bluetoothDetailsOpen && !root.settingsDetailsOpen
@@ -795,11 +897,16 @@ import Quickshell
                   anchors.fill: parent
                   visible: root.wifiDetailsOpen
                   z: 10
+                  opacity: visible ? 1 : 0
+                  scale: visible ? 1 : 0.94
+                  transformOrigin: Item.BottomRight
+                  Behavior on opacity { NumberAnimation { duration: 170; easing.type: Easing.OutCubic } }
+                  Behavior on scale { NumberAnimation { duration: 220; easing.type: Easing.OutBack } }
 
                   Rectangle {
                       anchors.fill: parent
                       radius: 10
-                      color: "#f0202631"
+                      color: "#c7202631"
 
                       Rectangle {
                           id: wifiBackButton
@@ -963,11 +1070,16 @@ import Quickshell
                   anchors.fill: parent
                   visible: root.bluetoothDetailsOpen
                   z: 11
+                  opacity: visible ? 1 : 0
+                  scale: visible ? 1 : 0.94
+                  transformOrigin: Item.BottomRight
+                  Behavior on opacity { NumberAnimation { duration: 170; easing.type: Easing.OutCubic } }
+                  Behavior on scale { NumberAnimation { duration: 220; easing.type: Easing.OutBack } }
 
                   Rectangle {
                       anchors.fill: parent
                       radius: 10
-                      color: "#f0202631"
+                      color: "#c7202631"
 
                       Rectangle {
                           id: bluetoothBackButton
@@ -1063,8 +1175,13 @@ import Quickshell
                   anchors.fill: parent
                   visible: root.settingsDetailsOpen
                   z: 12
+                  opacity: visible ? 1 : 0
+                  scale: visible ? 1 : 0.94
+                  transformOrigin: Item.BottomRight
+                  Behavior on opacity { NumberAnimation { duration: 170; easing.type: Easing.OutCubic } }
+                  Behavior on scale { NumberAnimation { duration: 220; easing.type: Easing.OutBack } }
                   Rectangle {
-                      anchors.fill: parent; radius: 10; color: "#f0202631"
+                      anchors.fill: parent; radius: 10; color: "#c7202631"
                       Rectangle {
                           id: settingsBackButton
                           anchors.left: parent.left; anchors.leftMargin: 14; anchors.top: parent.top; anchors.topMargin: 14
@@ -1114,6 +1231,234 @@ import Quickshell
           }
       }
 
+      // Native calendar flyout
+      PanelWindow {
+          id: calendarPanel
+          visible: root.calendarOpen
+          WlrLayershell.namespace: "windows-calendar"
+          anchors { right: true; bottom: true }
+          margins { right: 10; bottom: 56 }
+          implicitWidth: 350
+          implicitHeight: 390
+          exclusiveZone: 0
+          color: "transparent"
+
+          Rectangle {
+              anchors.fill: parent
+              radius: 11
+              color: "#c7202631"
+              border.width: 1
+              border.color: "#38ffffff"
+              transformOrigin: Item.BottomRight
+              scale: root.calendarOpen ? 1 : 0.88
+              opacity: root.calendarOpen ? 1 : 0
+              Behavior on scale { NumberAnimation { duration: 260; easing.type: Easing.OutBack } }
+              Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+
+              Text {
+                  anchors.left: parent.left; anchors.leftMargin: 22
+                  anchors.top: parent.top; anchors.topMargin: 18
+                  text: Qt.formatDateTime(root.currentTime, "dddd, MMMM d")
+                  color: "white"; font.family: root.uiFont; font.pixelSize: 16; font.bold: true
+              }
+              Text {
+                  anchors.left: parent.left; anchors.leftMargin: 22
+                  anchors.top: parent.top; anchors.topMargin: 46
+                  text: Qt.formatDateTime(root.currentTime, "HH:mm:ss")
+                  color: "#60cdff"; font.family: root.uiFont; font.pixelSize: 24
+              }
+              Rectangle {
+                  anchors.left: parent.left; anchors.right: parent.right
+                  anchors.top: parent.top; anchors.topMargin: 88
+                  height: 1; color: "#24ffffff"
+              }
+              Text {
+                  anchors.left: parent.left; anchors.leftMargin: 22
+                  anchors.top: parent.top; anchors.topMargin: 108
+                  text: root.calendarMonths[root.calendarMonth] + " " + root.calendarYear
+                  color: "white"; font.family: root.uiFont; font.pixelSize: 14; font.bold: true
+              }
+
+              Row {
+                  anchors.right: parent.right; anchors.rightMargin: 16
+                  anchors.top: parent.top; anchors.topMargin: 99
+                  spacing: 4
+                  Repeater {
+                      model: [{ text: "‹", offset: -1 }, { text: "›", offset: 1 }]
+                      delegate: Rectangle {
+                          required property var modelData
+                          width: 34; height: 34; radius: 6
+                          color: monthMouse.containsMouse ? "#36ffffff" : "transparent"
+                          Behavior on color { ColorAnimation { duration: 100 } }
+                          Text { anchors.centerIn: parent; text: modelData.text; color: "white"; font.pixelSize: 23 }
+                          MouseArea {
+                              id: monthMouse; anchors.fill: parent; hoverEnabled: true
+                              onClicked: root.moveCalendarMonth(modelData.offset)
+                          }
+                      }
+                  }
+              }
+
+              Grid {
+                  anchors.left: parent.left; anchors.leftMargin: 18
+                  anchors.top: parent.top; anchors.topMargin: 148
+                  columns: 7; spacing: 2
+                  Repeater {
+                      model: 7
+                      delegate: Text {
+                          required property int index
+                          width: 43; height: 26
+                          horizontalAlignment: Text.AlignHCenter
+                          verticalAlignment: Text.AlignVCenter
+                          text: root.calendarWeekdays[index]
+                          color: "#8fa1b5"; font.family: root.uiFont; font.pixelSize: 11
+                      }
+                  }
+                  Repeater {
+                      model: 42
+                      delegate: Rectangle {
+                          required property int index
+                          readonly property int day: root.calendarDay(index)
+                          width: 43; height: 31; radius: 7
+                          color: root.calendarIsToday(day)
+                              ? "#60cdff"
+                              : dayMouse.containsMouse && day > 0 ? "#2effffff" : "transparent"
+                          Behavior on color { ColorAnimation { duration: 100 } }
+                          Text {
+                              anchors.centerIn: parent
+                              text: day > 0 ? day : ""
+                              color: root.calendarIsToday(day) ? "#071018" : "white"
+                              font.family: root.uiFont; font.pixelSize: 12
+                              font.bold: root.calendarIsToday(day)
+                          }
+                          MouseArea { id: dayMouse; anchors.fill: parent; hoverEnabled: true }
+                      }
+                  }
+              }
+          }
+      }
+
+      // Native notification center
+      PanelWindow {
+          visible: root.notificationsOpen
+          WlrLayershell.namespace: "windows-notifications"
+          anchors { right: true; bottom: true }
+          margins { right: 10; bottom: 56 }
+          implicitWidth: 370; implicitHeight: 310
+          exclusiveZone: 0; color: "transparent"
+          Rectangle {
+              anchors.fill: parent; radius: 11
+              color: "#c7202631"; border.width: 1; border.color: "#38ffffff"
+              transformOrigin: Item.BottomRight
+              scale: root.notificationsOpen ? 1 : 0.88
+              opacity: root.notificationsOpen ? 1 : 0
+              Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutBack } }
+              Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+              Text { anchors.left: parent.left; anchors.leftMargin: 22; anchors.top: parent.top; anchors.topMargin: 20; text: "Notifications"; color: "white"; font.family: root.uiFont; font.pixelSize: 18; font.bold: true }
+              Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.topMargin: 58; height: 1; color: "#24ffffff" }
+              Column {
+                  anchors.centerIn: parent; anchors.verticalCenterOffset: -8; spacing: 8
+                  Text { anchors.horizontalCenter: parent.horizontalCenter; text: "✓"; color: "#60cdff"; font.pixelSize: 30 }
+                  Text { anchors.horizontalCenter: parent.horizontalCenter; text: "You're all caught up"; color: "white"; font.family: root.uiFont; font.pixelSize: 14 }
+                  Text { anchors.horizontalCenter: parent.horizontalCenter; text: "No new notifications"; color: "#8fa1b5"; font.family: root.uiFont; font.pixelSize: 11 }
+              }
+              Rectangle {
+                  anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; anchors.margins: 16
+                  height: 46; radius: 8; color: dndMouse.containsMouse ? "#36ffffff" : "#18ffffff"
+                  Behavior on color { ColorAnimation { duration: 110 } }
+                  Text { anchors.left: parent.left; anchors.leftMargin: 14; anchors.verticalCenter: parent.verticalCenter; text: "Do not disturb"; color: "white"; font.family: root.uiFont; font.pixelSize: 12 }
+                  Rectangle {
+                      anchors.right: parent.right; anchors.rightMargin: 12; anchors.verticalCenter: parent.verticalCenter
+                      width: 40; height: 22; radius: 11; color: root.doNotDisturb ? "#60cdff" : "#4b5665"
+                      Behavior on color { ColorAnimation { duration: 140 } }
+                      Rectangle { width: 16; height: 16; radius: 8; color: "white"; anchors.verticalCenter: parent.verticalCenter; x: root.doNotDisturb ? 21 : 3; Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.OutBack } } }
+                  }
+                  MouseArea { id: dndMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.toggleDoNotDisturb() }
+              }
+          }
+      }
+
+      // Native power flyout
+      PanelWindow {
+          visible: root.powerOpen
+          WlrLayershell.namespace: "windows-power"
+          anchors { bottom: true }
+          margins { bottom: 56 }
+          implicitWidth: 270; implicitHeight: 285
+          exclusiveZone: 0; color: "transparent"
+          Rectangle {
+              anchors.fill: parent; radius: 11
+              color: "#c7202631"; border.width: 1; border.color: "#38ffffff"
+              transformOrigin: Item.Bottom; scale: root.powerOpen ? 1 : 0.86; opacity: root.powerOpen ? 1 : 0
+              Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutBack } }
+              Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+              Text { anchors.left: parent.left; anchors.leftMargin: 20; anchors.top: parent.top; anchors.topMargin: 18; text: "Power"; color: "white"; font.family: root.uiFont; font.pixelSize: 17; font.bold: true }
+              Column {
+                  anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.topMargin: 55; anchors.margins: 12; spacing: 5
+                  Repeater {
+                      model: [{ title: "Lock", glyph: "●", action: "lock" }, { title: "Sleep", glyph: "☾", action: "sleep" }, { title: "Restart", glyph: "↻", action: "restart" }, { title: "Shut down", glyph: "⏻", action: "shutdown" }]
+                      delegate: Rectangle {
+                          required property var modelData
+                          width: parent.width; height: 48; radius: 7; color: powerMouse.containsMouse ? "#36ffffff" : "transparent"
+                          Behavior on color { ColorAnimation { duration: 100 } }
+                          Text { anchors.left: parent.left; anchors.leftMargin: 14; anchors.verticalCenter: parent.verticalCenter; text: modelData.glyph; color: "#60cdff"; font.pixelSize: 18 }
+                          Text { anchors.left: parent.left; anchors.leftMargin: 48; anchors.verticalCenter: parent.verticalCenter; text: modelData.title; color: "white"; font.family: root.uiFont; font.pixelSize: 13 }
+                          MouseArea {
+                              id: powerMouse; anchors.fill: parent; hoverEnabled: true
+                              onClicked: {
+                                  root.powerOpen = false
+                                  if (modelData.action === "lock") Quickshell.execDetached(["hyprlock", "--config", Quickshell.env("HOME") + "/.config/hypr/hyprlock-windows.conf"])
+                                  else if (modelData.action === "sleep") Quickshell.execDetached(["systemctl", "suspend"])
+                                  else if (modelData.action === "restart") Quickshell.execDetached(["systemctl", "reboot"])
+                                  else if (modelData.action === "shutdown") Quickshell.execDetached(["systemctl", "poweroff"])
+                              }
+                          }
+                      }
+                  }
+              }
+          }
+      }
+
+      // Native system-controls flyout
+      PanelWindow {
+          visible: root.trayOpen
+          WlrLayershell.namespace: "windows-tray"
+          anchors { right: true; bottom: true }
+          margins { right: 106; bottom: 56 }
+          implicitWidth: 280; implicitHeight: 255
+          exclusiveZone: 0; color: "transparent"
+          Rectangle {
+              anchors.fill: parent; radius: 11
+              color: "#c7202631"; border.width: 1; border.color: "#38ffffff"
+              transformOrigin: Item.BottomRight; scale: root.trayOpen ? 1 : 0.88; opacity: root.trayOpen ? 1 : 0
+              Behavior on scale { NumberAnimation { duration: 240; easing.type: Easing.OutBack } }
+              Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+              Text { anchors.left: parent.left; anchors.leftMargin: 20; anchors.top: parent.top; anchors.topMargin: 18; text: "System controls"; color: "white"; font.family: root.uiFont; font.pixelSize: 17; font.bold: true }
+              Grid {
+                  anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.topMargin: 58; anchors.margins: 14; columns: 2; spacing: 8
+                  Repeater {
+                      model: [{ title: "Settings", glyph: "⚙", action: "settings" }, { title: "Volume", glyph: "◖))", action: "volume" }, { title: "Bluetooth", glyph: "ᛒ", action: "bluetooth" }, { title: "Network", glyph: "⌁", action: "wifi" }]
+                      delegate: Rectangle {
+                          required property var modelData
+                          width: 122; height: 78; radius: 8; color: trayMouse.containsMouse ? "#36ffffff" : "#18ffffff"
+                          Behavior on color { ColorAnimation { duration: 100 } }
+                          Text { anchors.horizontalCenter: parent.horizontalCenter; anchors.top: parent.top; anchors.topMargin: 12; text: modelData.glyph; color: "#60cdff"; font.pixelSize: 20 }
+                          Text { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: 10; text: modelData.title; color: "white"; font.family: root.uiFont; font.pixelSize: 11 }
+                          MouseArea {
+                              id: trayMouse; anchors.fill: parent; hoverEnabled: true
+                              onClicked: {
+                                  root.trayOpen = false; root.quickSettingsOpen = true
+                                  if (modelData.action === "settings") root.openSettingsPage("home")
+                                  else if (modelData.action === "bluetooth") root.openSettingsPage("bluetooth")
+                                  else if (modelData.action === "wifi") root.openSettingsPage("wifi")
+                              }
+                          }
+                      }
+                  }
+              }
+          }
+      }
+
       // Start menu
       PanelWindow {
           id: startMenu
@@ -1145,11 +1490,21 @@ import Quickshell
           color: "transparent"
 
           Rectangle {
+              id: startSurface
               anchors.fill: parent
               radius: 10
-              color: "#df202631"
+              color: "#70202631"
               border.color: "#38ffffff"
               border.width: 1
+              transformOrigin: Item.Bottom
+              scale: root.startOpen ? 1 : 0.88
+              opacity: root.startOpen ? 1 : 0
+              Behavior on scale {
+                  NumberAnimation { duration: 280; easing.type: Easing.OutBack }
+              }
+              Behavior on opacity {
+                  NumberAnimation { duration: 170; easing.type: Easing.OutCubic }
+              }
 
               Column {
                   anchors.fill: parent
@@ -1161,7 +1516,7 @@ import Quickshell
                       width: parent.width
                       height: 46
                       radius: 8
-                      color: "#d91a1f28"
+                      color: "#661a1f28"
                       border.width: 1
                       border.color: search.activeFocus ? "#4cc2ff" : "#50ffffff"
 
@@ -1236,6 +1591,10 @@ import Quickshell
                       width: parent.width
                       height: 480
                       visible: search.text.length === 0 && !root.showingAllApps
+                      opacity: visible ? 1 : 0
+                      scale: visible ? 1 : 0.97
+                      Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                      Behavior on scale { NumberAnimation { duration: 190; easing.type: Easing.OutCubic } }
 
                       Text {
                           anchors.left: parent.left
@@ -1255,6 +1614,7 @@ import Quickshell
                           height: 30
                           radius: 6
                           color: allAppsMouse.containsMouse ? "#4a4b50" : "#3a3b40"
+                          Behavior on color { ColorAnimation { duration: 110 } }
 
                           Text {
                               anchors.centerIn: parent
@@ -1296,6 +1656,7 @@ import Quickshell
                                   anchors.margins: 3
                                   radius: 7
                                   color: pinnedMouse.containsMouse ? "#34353a" : "transparent"
+                                  Behavior on color { ColorAnimation { duration: 110 } }
                               }
 
                               Image {
@@ -1409,6 +1770,10 @@ import Quickshell
                       width: parent.width
                       height: 480
                       visible: search.text.length > 0 || root.showingAllApps
+                      opacity: visible ? 1 : 0
+                      scale: visible ? 1 : 0.97
+                      Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+                      Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
                       Text {
                           id: resultsTitle
@@ -1445,6 +1810,7 @@ import Quickshell
                           color: index === appList.currentIndex
                               ? "#3d3e43"
                               : resultMouse.containsMouse ? "#303136" : "transparent"
+                          Behavior on color { ColorAnimation { duration: 100 } }
 
                           Image {
                               anchors.left: parent.left
@@ -1499,7 +1865,7 @@ import Quickshell
                   anchors.right: parent.right
                   anchors.bottom: parent.bottom
                   height: 68
-                  color: "#d91a1f29"
+                  color: "#661a1f29"
 
                   Text {
                       anchors.left: parent.left

@@ -1,13 +1,3 @@
 #!/usr/bin/env bash
-set -euo pipefail
-set +e
-yad --title="Power" --mouse --fixed --undecorated --skip-taskbar --width=230 --height=180 \
-  --text="<b>Power</b>" --button="Lock":10 --button="Sleep":20 --button="Restart":30 --button="Shut down":40 --button="Cancel":1
-choice=$?
-set -e
-case "$choice" in
-  10) exec hyprlock --config "$HOME/.config/hypr/hyprlock-windows.conf" ;;
-  20) systemctl suspend ;;
-  30) systemctl reboot ;;
-  40) systemctl poweroff ;;
-esac
+CONFIG="$HOME/.config/quickshell/windows11/shell.qml"
+exec quickshell --path "$CONFIG" ipc call windowsStart togglePower

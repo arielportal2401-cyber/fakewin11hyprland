@@ -1,0 +1,23 @@
+[general]
+framerate = 60
+autosens = 1
+sensitivity = 100
+bars = 0
+[input]
+method = pipewire
+[output]
+channels = stereo
+mono_option = average
+reverse = 0
+bar_width = 2
+bar_spacing = 1
+[color]
+gradient = 1
+gradient_count = 5
+gradient_color_1 = '#0078d4'
+gradient_color_2 = '#249ce8'
+gradient_color_3 = '#60cdff'
+gradient_color_4 = '#66eee5'
+gradient_color_5 = '#c58af9'
+[smoothing]
+noise_reduction = 0.77

@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+state_dir="$HOME/.local/state/windows11-rice"
+state_file="$state_dir/layout-mode"
+action="${1:-next}"
+mkdir -p "$state_dir"
+
+current="windows"
+[[ -r "$state_file" ]] && read -r current < "$state_file"
+
+case "$action" in
+    reset) target="windows" ;;
+    next)
+        case "$current" in
+            windows) target="dwindle" ;;
+            dwindle) target="master-center" ;;
+            master-center) target="master-top" ;;
+            master-top) target="scrolling" ;;
+            scrolling|*) target="windows" ;;
+        esac
+        ;;
+    *) printf 'usage: %s [next|reset]\n' "$0" >&2; exit 2 ;;
+esac
+
+window_addresses() {
+    hyprctl clients -j | jq -r \
+        '.[] | select(.workspace.id >= 1 and .workspace.id <= 10) | .address'
+}
+
+tile_all() {
+    local address
+    while IFS= read -r address; do
+        [[ -n "$address" ]] || continue
+        hyprctl dispatch settiled "address:$address" >/dev/null
+    done < <(window_addresses)
+}
+
+float_all() {
+    local address
+    while IFS= read -r address; do
+        [[ -n "$address" ]] || continue
+        hyprctl dispatch setfloating "address:$address" >/dev/null
+    done < <(window_addresses)
+}
+
+case "$target" in
+    windows)
+        hyprctl keyword general:layout dwindle >/dev/null
+        hyprctl keyword 'windowrule[windows_floating_desktop]:enable true' >/dev/null
+        float_all
+        label="Windows floating"
+        color="60cdff"
+        ;;
+    dwindle)
+        hyprctl keyword 'windowrule[windows_floating_desktop]:enable false' >/dev/null
+        hyprctl keyword general:layout dwindle >/dev/null
+        hyprctl keyword dwindle:smart_split true >/dev/null
+        tile_all
+        label="Corner split"
+        color="66eee5"
+        ;;
+    master-center)
+        hyprctl keyword 'windowrule[windows_floating_desktop]:enable false' >/dev/null
+        hyprctl keyword general:layout master >/dev/null
+        hyprctl keyword master:orientation center >/dev/null
+        tile_all
+        hyprctl dispatch layoutmsg orientationcenter >/dev/null 2>&1 || true
+        label="Centered master"
+        color="8be9a8"
+        ;;
+    master-top)
+        hyprctl keyword 'windowrule[windows_floating_desktop]:enable false' >/dev/null
+        hyprctl keyword general:layout master >/dev/null
+        hyprctl keyword master:orientation top >/dev/null
+        tile_all
+        hyprctl dispatch layoutmsg orientationtop >/dev/null 2>&1 || true
+        label="Top stack"
+        color="f3c96b"
+        ;;
+    scrolling)
+        hyprctl keyword 'windowrule[windows_floating_desktop]:enable false' >/dev/null
+        hyprctl keyword general:layout scrolling >/dev/null
+        hyprctl keyword scrolling:column_width 0.42 >/dev/null
+        tile_all
+        hyprctl dispatch layoutmsg 'colresize all 0.42' >/dev/null 2>&1 || true
+        hyprctl dispatch layoutmsg 'fit visible' >/dev/null 2>&1 || true
+        label="Scrolling cards"
+        color="c58af9"
+        ;;
+esac
+
+printf '%s\n' "$target" > "$state_file"
+hyprctl notify 1 1800 "rgb($color)" "Layout: $label" >/dev/null 2>&1 || \
+    notify-send -a "Windows shell" "Layout" "$label"

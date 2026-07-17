@@ -1,0 +1,65 @@
+format = """
+[](fg:blue)\
+$os\
+$username\
+[](fg:blue bg:navy)\
+$directory\
+[](fg:navy bg:slate)\
+$git_branch\
+$git_status\
+[](fg:slate)\
+$fill\
+$cmd_duration\
+$status\
+$line_break\
+$character"""
+palette = "windows11"
+add_newline = true
+command_timeout = 800
+
+[palettes.windows11]
+blue = "#60CDFF"
+navy = "#17365D"
+slate = "#26384D"
+text = "#E7EEF8"
+muted = "#8FA1B5"
+green = "#6CCB8E"
+red = "#FF7B86"
+yellow = "#F3C96B"
+
+[os]
+disabled = false
+style = "bg:blue fg:#071018 bold"
+format = "[$symbol]($style)"
+[os.symbols]
+Linux = "  "
+[username]
+show_always = true
+style_user = "bg:blue fg:#071018 bold"
+format = "[$user ]($style)"
+[directory]
+style = "bg:navy fg:text bold"
+format = "[   $path ]($style)"
+truncation_length = 3
+truncate_to_repo = false
+[git_branch]
+symbol = ""
+style = "bg:slate fg:text"
+format = "[ $symbol $branch]($style)"
+[git_status]
+style = "bg:slate fg:yellow"
+format = "[$all_status$ahead_behind ]($style)"
+[fill]
+symbol = " "
+[cmd_duration]
+min_time = 500
+style = "fg:muted"
+format = "[󱎫 $duration ]($style)"
+[status]
+disabled = false
+style = "fg:red bold"
+format = "[$symbol$status ]($style)"
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"
+vimcmd_symbol = "[❮](bold blue)"

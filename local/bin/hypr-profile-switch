@@ -37,6 +37,7 @@ cp -f "$profile_root/config/"*.conf "$hypr_root/config/"
 hyprctl reload
 
 if [[ "$profile" == "windows11" ]]; then
+    "$HOME/.local/bin/windows-layout-cycle" reset >/dev/null 2>&1 || true
     "$HOME/.local/bin/windows-shell" start
 else
     "$hypr_root/scripts/qs_manager.sh" start >/dev/null 2>&1 || true

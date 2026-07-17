@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+state="$HOME/.local/state/windows11/do-not-disturb"
+mkdir -p "$(dirname "$state")"
+case "${1:-status}" in
+    on) : > "$state" ;;
+    off) rm -f "$state" ;;
+    toggle) if [[ -e "$state" ]]; then rm -f "$state"; else : > "$state"; fi ;;
+    status) [[ -e "$state" ]] && printf 'on\n' || printf 'off\n' ;;
+    *) printf 'usage: %s on|off|toggle|status\n' "$0" >&2; exit 2 ;;
+esac

@@ -1,14 +1,3 @@
 #!/usr/bin/env bash
-set -euo pipefail
-dnd_file="$HOME/.local/state/windows11/do-not-disturb"
-dnd="Off"; [[ -e "$dnd_file" ]] && dnd="On"
-set +e
-yad --title="Notifications" --mouse --fixed --undecorated --skip-taskbar --width=360 --height=310 \
-  --text="<span size='large'><b>Notifications</b></span>\n\nNo new notifications\n\nDo not disturb: <b>$dnd</b>" \
-  --button="Toggle do not disturb":10 --button="Clear all":20 --button="Close":1
-choice=$?
-set -e
-if [[ $choice -eq 10 ]]; then
-  mkdir -p "$(dirname "$dnd_file")"
-  if [[ -e "$dnd_file" ]]; then rm -f "$dnd_file"; else : >"$dnd_file"; fi
-fi
+CONFIG="$HOME/.config/quickshell/windows11/shell.qml"
+exec quickshell --path "$CONFIG" ipc call windowsStart toggleNotifications

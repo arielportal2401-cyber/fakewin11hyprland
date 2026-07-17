@@ -1,3 +1,11 @@
 #!/usr/bin/env bash
-exec yad --calendar --title="Calendar" --mouse --fixed --undecorated --skip-taskbar \
-  --width=330 --height=300 --button="Close":0
+
+CONFIG="$HOME/.config/quickshell/windows11/shell.qml"
+quickshell --no-duplicate --daemonize --path "$CONFIG" >/dev/null 2>&1
+for _ in $(seq 1 20); do
+    if quickshell --path "$CONFIG" ipc call windowsStart toggleCalendar >/dev/null 2>&1; then
+        exit 0
+    fi
+    sleep 0.05
+done
+exit 1

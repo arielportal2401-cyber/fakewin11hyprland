@@ -6,6 +6,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 
 
 def application_directories():
@@ -73,21 +74,34 @@ for directory in application_directories():
             if name.casefold() in hidden_names:
                 continue
 
-            # Desktop files use placeholders such as %U and %f. They are not
-            # meaningful when launching a result without a selected file.
-            command = " ".join(
-                part for part in command.split()
-                if not part.startswith("%") and part not in {"@@", "@@u"}
-            )
+            flatpak_id = entry.get("X-Flatpak", "").strip()
+            if flatpak_id:
+                # Exported Flatpak Exec lines contain file-forwarding markers
+                # such as @@u/%U/@@. Launch the canonical app ID instead of
+                # reconstructing a command with a broken trailing `--`.
+                flatpak = shutil.which("flatpak") or os.path.expanduser(
+                    "~/.nix-profile/bin/flatpak")
+                command = shlex.join([flatpak, "run", flatpak_id])
+            else:
+                words = [
+                    part for part in shlex.split(command)
+                    if not re.fullmatch(r"%[fFuUdDnNickvm]", part)
+                    and part not in {"@@", "@@u"}
+                ]
+                command = shlex.join(words)
 
             startup_class = entry.get("StartupWMClass", "").strip()
             if startup_class:
-                match = "^(" + re.escape(startup_class) + ")$"
+                candidates = [startup_class]
+                if flatpak_id:
+                    candidates.append(flatpak_id)
+                    candidates.append(flatpak_id.rsplit(".", 1)[-1])
+                match = "^(" + "|".join(re.escape(item) for item in candidates) + ")$"
             else:
                 words = shlex.split(command)
                 candidates = [os.path.basename(words[0])] if words else []
-                if len(words) >= 3 and candidates and candidates[0] == "flatpak" and words[1] == "run":
-                    candidates.extend([words[2], words[2].split(".")[-1]])
+                if flatpak_id:
+                    candidates.extend([flatpak_id, flatpak_id.rsplit(".", 1)[-1]])
                 match = "^(" + "|".join(re.escape(item) for item in candidates) + ")$" if candidates else ""
 
             apps.setdefault(name.casefold(), {

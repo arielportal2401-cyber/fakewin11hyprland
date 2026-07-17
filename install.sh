@@ -110,6 +110,7 @@ dependencies=(
     hyprlock thunar kitty fastfetch iwctl bluetoothctl pavucontrol playerctl
     brightnessctl satty notify-send magick wpctl pactl swayosd-client cliphist
     xdg-desktop-portal xdg-desktop-portal-hyprland xdg-user-dir pipewire
+    starship eza bat zoxide btop cava pipes-rs chafa
 )
 
 missing_commands() {
@@ -308,6 +309,9 @@ phase 2 'Backing up the current desktop'
 mkdir -p \
     "$backup/config/quickshell" \
     "$backup/config/waybar" \
+    "$backup/config/kitty" \
+    "$backup/config/cava" \
+    "$backup/config/btop" \
     "$backup/local/share/applications" \
     "$backup/local/share/icons" \
     "$HOME/.config" \
@@ -327,6 +331,11 @@ fi
 [[ -e "$HOME/.config/waybar/windows11" ]] && \
     cp -a -- "$HOME/.config/waybar/windows11" "$backup/config/waybar/"
 [[ -e "$HOME/.config/fastfetch" ]] && cp -a -- "$HOME/.config/fastfetch" "$backup/config/"
+[[ -e "$HOME/.config/kitty" ]] && cp -a -- "$HOME/.config/kitty" "$backup/config/"
+[[ -e "$HOME/.config/starship.toml" ]] && cp -- "$HOME/.config/starship.toml" "$backup/config/"
+[[ -e "$HOME/.config/cava" ]] && cp -a -- "$HOME/.config/cava" "$backup/config/"
+[[ -e "$HOME/.config/btop" ]] && cp -a -- "$HOME/.config/btop" "$backup/config/"
+[[ -e "$HOME/.bashrc" ]] && cp -- "$HOME/.bashrc" "$backup/bashrc"
 [[ -e "$HOME/.local/share/applications/hypr-config-switcher.desktop" ]] && \
     cp -- "$HOME/.local/share/applications/hypr-config-switcher.desktop" "$backup/local/share/applications/"
 [[ -e "$HOME/.local/share/applications/windows-settings.desktop" ]] && \
@@ -367,6 +376,9 @@ mkdir -p \
     "$HOME/.config/hypr/config" \
     "$HOME/.config/hypr/profiles" \
     "$HOME/.config/fastfetch" \
+    "$HOME/.config/kitty" \
+    "$HOME/.config/cava" \
+    "$HOME/.config/btop" \
     "$HOME/.config/quickshell" \
     "$HOME/.config/waybar" \
     "$HOME/.config/windows11" \
@@ -405,6 +417,10 @@ cp -a -- "$repo/config/hypr/profiles/windows11" "$HOME/.config/hypr/profiles/"
 cp -a -- "$repo/config/quickshell/windows11" "$HOME/.config/quickshell/"
 cp -a -- "$repo/config/waybar/windows11" "$HOME/.config/waybar/"
 cp -- "$repo/config/fastfetch/config.jsonc" "$HOME/.config/fastfetch/config.jsonc"
+cp -- "$repo/config/kitty/"*.conf "$HOME/.config/kitty/"
+cp -- "$repo/config/starship.toml" "$HOME/.config/starship.toml"
+cp -- "$repo/config/cava/config" "$HOME/.config/cava/config"
+cp -- "$repo/config/btop/btop.conf" "$HOME/.config/btop/btop.conf"
 cp -- "$repo/config/hypr/hyprland.conf" "$HOME/.config/hypr/hyprland.conf"
 cp -- "$repo/config/hypr/hyprlock-windows.conf" "$HOME/.config/hypr/hyprlock-windows.conf"
 cp -- "$repo/local/bin/"* "$HOME/.local/bin/"
@@ -441,6 +457,15 @@ chmod u+x \
     "$HOME/.local/bin/hypr-profile-switch" \
     "$HOME/.local/bin/hypr-config-switcher"
 
+# Merge the interactive prompt and aliases once; never replace the user's
+# existing Bash setup. The full pre-install .bashrc is also in the backup.
+touch "$HOME/.bashrc"
+if ! rg -q '^# WINDOWS11_RICE_SHELL_START$' "$HOME/.bashrc"; then
+    printf '\n' >> "$HOME/.bashrc"
+    sed -n '/^# WINDOWS11_RICE_SHELL_START$/,/^# WINDOWS11_RICE_SHELL_END$/p' \
+        "$repo/config/shell/windows11.bashrc" >> "$HOME/.bashrc"
+fi
+
 command -v update-desktop-database >/dev/null 2>&1 && \
     update-desktop-database "$HOME/.local/share/applications" >/dev/null 2>&1 || true
 
@@ -455,6 +480,8 @@ for required_file in \
     "$HOME/.config/hypr/config/keybindings.conf" \
     "$HOME/.config/quickshell/windows11/shell.qml" \
     "$HOME/.config/waybar/windows11/config.jsonc" \
+    "$HOME/.config/kitty/kitty.conf" \
+    "$HOME/.config/starship.toml" \
     "$HOME/.local/bin/windows-shell" \
     "$HOME/.local/bin/windows-workspace-cycle" \
     "$HOME/.local/bin/windows-taskbar-watch"; do
@@ -475,6 +502,7 @@ success 'Installed files passed verification.'
 
 if [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]; then
     hyprctl reload
+    "$HOME/.local/bin/windows-layout-cycle" reset
     "$HOME/.local/bin/windows-shell" restart
     success 'Hyprland reloaded and the Windows shell started.'
 else

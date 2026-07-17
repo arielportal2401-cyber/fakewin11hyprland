@@ -107,6 +107,7 @@ current Linux account.
 | `Win + Tab` | Open the window switcher |
 | `Win + Left/Right` | Snap the active window |
 | `Win + F` | Toggle fullscreen and taskbar visibility |
+| `Win + Space` | Cycle floating, corner, master, stack and scrolling layouts |
 | `Win + mouse wheel` | Cycle quickly through workspaces |
 | `Win + Shift + S` | Select a screenshot region |
 | `Win + L` | Lock with the normal account password |
@@ -134,6 +135,9 @@ The automatic installer provides:
 - Thunar, Kitty, Fastfetch, Yad, jq and Python
 - notification, brightness, media, clipboard and icon helpers
 - repaired XDG Downloads, Pictures and Videos defaults for sandboxed file pickers
+- a translucent Kitty theme, Starship prompt, eza, bat, zoxide, btop, Cava,
+  pipes-rs and Chafa
+- native animated calendar, notifications, power and system-control flyouts
 
 The Wi-Fi controls currently use iwd rather than NetworkManager. On a system
 where NetworkManager owns Wi-Fi, install iwd and switch backends deliberately;
