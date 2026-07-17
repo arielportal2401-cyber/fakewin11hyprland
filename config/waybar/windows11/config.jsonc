@@ -39,6 +39,8 @@
   "hyprland/workspaces": {
     "format": "{name}",
     "on-click": "activate",
+    "on-scroll-up": "@HOME@/.local/bin/windows-workspace-cycle next",
+    "on-scroll-down": "@HOME@/.local/bin/windows-workspace-cycle previous",
     "sort-by-number": true,
     "all-outputs": false,
     "persistent-workspaces": {
