@@ -27,10 +27,17 @@ chmod +x install.sh
 
 Backups go under `~/.local/state/windows11-rice/backups/`.
 
+The installer checks every runtime command and offers to install only what is
+missing. It supports pacman, apt, DNF, zypper, XBPS, APK and Nix. Use
+`./install.sh --yes` for a non-interactive dependency install. If a native
+repository lacks a current Hyprland or Quickshell package, an existing Nix
+installation is used as a fallback and the result is verified before any
+dotfiles are copied.
+
 ## Dependencies
 
-The installer checks commands instead of guessing which Linux distribution you
-use. Install these through your package manager first:
+The installer handles these automatically when the package manager provides
+them:
 
 - Hyprland, Quickshell, Waybar and Hyprlock
 - Rofi, Yad, jq and Python 3
