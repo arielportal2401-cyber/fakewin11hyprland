@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+direction="${1:-next}"
+current="$(hyprctl activeworkspace -j | jq -r '.id')"
+
+if [[ ! "$current" =~ ^[0-9]+$ ]] || ((current < 1 || current > 10)); then
+    current=1
+fi
+
+case "$direction" in
+    next) target=$((current % 10 + 1)) ;;
+    previous) target=$(((current + 8) % 10 + 1)) ;;
+    *) printf 'usage: %s next|previous\n' "$0" >&2; exit 2 ;;
+esac
+
+hyprctl dispatch workspace "$target"

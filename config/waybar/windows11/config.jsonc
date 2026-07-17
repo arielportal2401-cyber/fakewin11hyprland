@@ -6,7 +6,10 @@
   "exclusive": true,
   "fixed-center": true,
   "spacing": 0,
-  "modules-left": [],
+  "modules-left": [
+    "custom/weather",
+    "hyprland/workspaces"
+  ],
   "modules-center": [
     "custom/start",
     "custom/search",
@@ -32,6 +35,15 @@
     "tooltip": true,
     "on-click": "@HOME@/.local/bin/windows-settings",
     "on-click-right": "@HOME@/.local/bin/windows-weather-settings"
+  },
+  "hyprland/workspaces": {
+    "format": "{name}",
+    "on-click": "activate",
+    "sort-by-number": true,
+    "all-outputs": false,
+    "persistent-workspaces": {
+      "*": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    }
   },
   "custom/start": {
     "format": " ",

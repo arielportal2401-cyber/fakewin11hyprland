@@ -6,8 +6,9 @@ pinning, quick settings, screenshots, snapping, weather, wallpaper switching
 and a matching Fastfetch setup.
 
 > [!IMPORTANT]
-> The installer backs up the current desktop before changing it. The Windows
-> profile and original profile are kept in separate directories.
+> The installer keeps a dated recovery copy before replacing anything. If an
+> existing Hyprland config is detected, you choose whether it also remains as
+> a switchable ORIGINAL profile.
 
 ---
 
@@ -21,8 +22,8 @@ cd fakewin11hyprland
 ./install.sh
 ```
 
-That is the normal installation. The script explains what it will do, asks once
-before changing anything, and handles the rest automatically.
+That is the normal installation. The script explains what it will do, asks how
+to handle any existing Hyprland config, and handles the rest automatically.
 
 > [!WARNING]
 > Do **not** run `sudo ./install.sh`. Run it as the normal desktop user. The
@@ -35,13 +36,17 @@ For a completely non-interactive install:
 ./install.sh --yes
 ```
 
+`--yes` uses clean replacement mode. It assumes no old Hyprland profile needs
+to remain installed, while still moving any detected config into the dated
+recovery directory.
+
 ## What the installer does automatically
 
 1. Detects installed programs.
 2. Installs only missing dependencies.
 3. Verifies that every required command is actually available.
-4. Creates a timestamped backup of the existing desktop.
-5. Saves the existing Hyprland setup as the **ORIGINAL** profile when possible.
+4. Offers clean replacement or a preserved, switchable **ORIGINAL** profile.
+5. Creates a timestamped recovery copy in either mode.
 6. Installs the **WINDOWS** profile separately.
 7. Replaces template paths with the current user's real home directory.
 8. Checks the installed files and reloads Hyprland.
@@ -102,6 +107,7 @@ current Linux account.
 | `Win + Tab` | Open the window switcher |
 | `Win + Left/Right` | Snap the active window |
 | `Win + F` | Toggle fullscreen and taskbar visibility |
+| `Win + mouse wheel` | Cycle quickly through workspaces |
 | `Win + Shift + S` | Select a screenshot region |
 | `Win + L` | Lock with the normal account password |
 | `Alt + F4` | Close the active window |
@@ -109,6 +115,10 @@ current Linux account.
 Fullscreen taskbar visibility follows the focused workspace. Moving away from
 a fullscreen app shows the taskbar; returning to it hides the taskbar again.
 `Win + F` does nothing when no application window is focused.
+
+The taskbar keeps pinned apps centered and adds ten compact workspace tabs beside
+the weather widget. Click a number to switch workspaces; the active one gets a
+subtle Fluent-blue indicator.
 
 ---
 
@@ -123,6 +133,7 @@ The automatic installer provides:
 - iwd Wi-Fi and BlueZ Bluetooth command-line backends
 - Thunar, Kitty, Fastfetch, Yad, jq and Python
 - notification, brightness, media, clipboard and icon helpers
+- repaired XDG Downloads, Pictures and Videos defaults for sandboxed file pickers
 
 The Wi-Fi controls currently use iwd rather than NetworkManager. On a system
 where NetworkManager owns Wi-Fi, install iwd and switch backends deliberately;

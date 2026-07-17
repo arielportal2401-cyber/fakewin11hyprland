@@ -12,7 +12,7 @@ for argument in "$@"; do
         --yes|-y) assume_yes=true ;;
         --help|-h)
             printf 'usage: %s [--yes]\n\n' "$0"
-            printf '  --yes, -y  Install automatically without confirmation.\n'
+            printf '  --yes, -y  Install automatically in clean/replace mode.\n'
             exit 0
             ;;
         *) printf 'Unknown option: %s\nTry %s --help\n' "$argument" "$0" >&2; exit 2 ;;
@@ -56,25 +56,50 @@ if ((EUID == 0)); then
     exit 1
 fi
 
+if ! $assume_yes && [[ ! -t 0 ]]; then
+    failure 'Run interactively or use ./install.sh --yes.'
+    exit 1
+fi
+
 rule
 printf '%s%s       FAKE WINDOWS 11 FOR HYPRLAND - AUTOMATIC INSTALLER%s\n' "$blue" "$bold" "$reset"
 rule
 printf '\nThis installer will:\n'
 printf '  1. Check and install missing dependencies.\n'
-printf '  2. Back up your current desktop before changing anything.\n'
-printf '  3. Keep the ORIGINAL and WINDOWS profiles in separate folders.\n'
+printf '  2. Ask whether an existing Hyprland setup should be preserved.\n'
+printf '  3. Install a clean WINDOWS profile without requiring an old config.\n'
 printf '  4. Install the taskbar, Start menu, settings and helper scripts.\n'
 printf '  5. Verify the result and reload Hyprland.\n\n'
-printf '%sIMPORTANT SEPARATION%s\n' "$bold" "$reset"
-printf '  ORIGINAL : %s\n' "$HOME/.config/hypr/profiles/original"
+
+preserve_current=false
+if [[ -f "$HOME/.config/hypr/hyprland.conf" || \
+      -d "$HOME/.config/hypr/config" || \
+      -d "$HOME/.config/hypr/profiles" ]]; then
+    printf '%sExisting Hyprland config detected.%s\n' "$yellow" "$reset"
+    printf '  1. Clean install / replace it (default)\n'
+    printf '  2. Preserve it as a switchable ORIGINAL profile\n'
+    if ! $assume_yes; then
+        read -r -p 'Choose 1 or 2 [1]: ' config_choice
+        case "${config_choice:-1}" in
+            1) ;;
+            2) preserve_current=true ;;
+            *) failure 'Please choose 1 or 2.'; exit 2 ;;
+        esac
+    else
+        printf 'Automatic mode selected: clean install / replace.\n'
+    fi
+else
+    success 'No existing Hyprland config detected; using a clean install.'
+fi
+
+printf '\n%sINSTALL LAYOUT%s\n' "$bold" "$reset"
+if $preserve_current; then
+    printf '  ORIGINAL : %s\n' "$HOME/.config/hypr/profiles/original"
+fi
 printf '  WINDOWS  : %s\n' "$HOME/.config/hypr/profiles/windows11"
-printf '  BACKUP   : %s\n' "$backup"
+printf '  RECOVERY : %s\n' "$backup"
 
 if ! $assume_yes; then
-    if [[ ! -t 0 ]]; then
-        failure 'Run interactively or use ./install.sh --yes.'
-        exit 1
-    fi
     printf '\n'
     read -r -p 'Continue with the automatic installation? [Y/n] ' answer
     [[ "${answer:-y}" =~ ^[Yy]$ ]] || { printf 'Nothing was changed.\n'; exit 0; }
@@ -84,7 +109,7 @@ dependencies=(
     hyprctl quickshell waybar rofi rg jq python3 yad awww grim slurp wl-copy
     hyprlock thunar kitty fastfetch iwctl bluetoothctl pavucontrol playerctl
     brightnessctl satty notify-send magick wpctl pactl swayosd-client cliphist
-    xdg-desktop-portal xdg-desktop-portal-hyprland pipewire
+    xdg-desktop-portal xdg-desktop-portal-hyprland xdg-user-dir pipewire
 )
 
 missing_commands() {
@@ -147,6 +172,7 @@ native_package_for() {
     case "$manager:$command" in
         *:hyprctl) printf 'hyprland\n' ;;
         *:swayosd-client) printf 'swayosd\n' ;;
+        *:xdg-user-dir) printf 'xdg-user-dirs\n' ;;
         pacman:python3) printf 'python\n' ;;
         pacman:rofi) printf 'rofi-wayland\n' ;;
         pacman:wl-copy) printf 'wl-clipboard\n' ;;
@@ -195,6 +221,7 @@ nix_package_for() {
     case "$1" in
         hyprctl) printf 'hyprland\n' ;;
         swayosd-client) printf 'swayosd\n' ;;
+        xdg-user-dir) printf 'xdg-user-dirs\n' ;;
         rofi) printf 'rofi-wayland\n' ;;
         rg) printf 'ripgrep\n' ;;
         wl-copy) printf 'wl-clipboard\n' ;;
@@ -287,7 +314,14 @@ mkdir -p \
     "$HOME/.local/bin" \
     "$HOME/.local/share/windows11/wallpapers"
 
-[[ -e "$HOME/.config/hypr" ]] && cp -a -- "$HOME/.config/hypr" "$backup/config/"
+if [[ -e "$HOME/.config/hypr" ]]; then
+    if $preserve_current; then
+        cp -a -- "$HOME/.config/hypr" "$backup/config/"
+    else
+        mv -- "$HOME/.config/hypr" "$backup/config/hypr"
+        success 'Existing Hyprland config moved into the recovery backup.'
+    fi
+fi
 [[ -e "$HOME/.config/quickshell/windows11" ]] && \
     cp -a -- "$HOME/.config/quickshell/windows11" "$backup/config/quickshell/"
 [[ -e "$HOME/.config/waybar/windows11" ]] && \
@@ -303,19 +337,28 @@ mkdir -p "$HOME/.local/state/windows11-rice"
 printf '%s\n' "$backup" > "$HOME/.local/state/windows11-rice/latest-backup"
 success "Backup saved to $backup"
 
-# The switcher needs a clean copy of whatever desktop the user had before this.
-phase 3 'Separating ORIGINAL and WINDOWS profiles'
+# The switcher only creates ORIGINAL when the user explicitly preserves it.
+phase 3 'Preparing cleanly separated profiles'
 original="$HOME/.config/hypr/profiles/original"
-if [[ ! -d "$original" && -d "$HOME/.config/hypr/config" ]]; then
-    mkdir -p "$original"
-    [[ -f "$HOME/.config/hypr/colors.conf" ]] && cp -- "$HOME/.config/hypr/colors.conf" "$original/colors.conf"
-    cp -a -- "$HOME/.config/hypr/config" "$original/config"
-fi
-
-if [[ -d "$original/config" ]]; then
-    success "ORIGINAL profile: $original"
+if $preserve_current; then
+    if [[ ! -d "$original" && -d "$HOME/.config/hypr/config" ]]; then
+        mkdir -p "$original"
+        [[ -f "$HOME/.config/hypr/colors.conf" ]] && cp -- "$HOME/.config/hypr/colors.conf" "$original/colors.conf"
+        cp -a -- "$HOME/.config/hypr/config" "$original/config"
+    fi
+    if [[ -d "$original/config" ]]; then
+        success "ORIGINAL profile: $original"
+    else
+        warning 'The old config was backed up, but it was not modular enough to become an ORIGINAL profile.'
+    fi
+    # ORIGINAL is now safely stored under profiles/. Remove the active modular
+    # files so old keybindings cannot leak into the Windows profile.
+    if [[ -d "$HOME/.config/hypr/config" ]]; then
+        mkdir -p "$backup/replaced"
+        mv -- "$HOME/.config/hypr/config" "$backup/replaced/active-hypr-config"
+    fi
 else
-    warning 'No existing modular Hyprland profile was found; the full backup is still safe.'
+    success 'Clean mode selected; no old files will be mixed into WINDOWS.'
 fi
 printf 'WINDOWS profile destination: %s\n' "$HOME/.config/hypr/profiles/windows11"
 
@@ -329,6 +372,21 @@ mkdir -p \
     "$HOME/.config/windows11" \
     "$HOME/.local/share/applications" \
     "$HOME/.local/share/icons/hicolor/256x256/apps"
+
+# A missing user-dirs file makes some sandboxed apps treat the whole home
+# directory as Downloads. Keep existing custom locations, but repair unset
+# defaults before file-picker portals and Flatpak apps start.
+ensure_user_directory() {
+    local name="$1" fallback="$2" current
+    current="$(xdg-user-dir "$name" 2>/dev/null || true)"
+    if [[ -z "$current" || "$current" == "$HOME" ]]; then
+        mkdir -p "$fallback"
+        xdg-user-dirs-update --set "$name" "$fallback"
+    fi
+}
+ensure_user_directory DOWNLOAD "$HOME/Downloads"
+ensure_user_directory PICTURES "$HOME/Pictures"
+ensure_user_directory VIDEOS "$HOME/Videos"
 
 # Install clean profile directories so files removed by newer releases do not
 # survive from an older installation. The complete previous copy is above.
@@ -398,6 +456,7 @@ for required_file in \
     "$HOME/.config/quickshell/windows11/shell.qml" \
     "$HOME/.config/waybar/windows11/config.jsonc" \
     "$HOME/.local/bin/windows-shell" \
+    "$HOME/.local/bin/windows-workspace-cycle" \
     "$HOME/.local/bin/windows-taskbar-watch"; do
     if [[ ! -e "$required_file" ]]; then
         failure "Installation verification failed: $required_file is missing."
