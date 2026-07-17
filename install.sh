@@ -418,6 +418,7 @@ cp -a -- "$repo/config/quickshell/windows11" "$HOME/.config/quickshell/"
 cp -a -- "$repo/config/waybar/windows11" "$HOME/.config/waybar/"
 cp -- "$repo/config/fastfetch/config.jsonc" "$HOME/.config/fastfetch/config.jsonc"
 cp -- "$repo/config/kitty/"*.conf "$HOME/.config/kitty/"
+cp -- "$repo/config/kitty/"*.py "$HOME/.config/kitty/"
 cp -- "$repo/config/starship.toml" "$HOME/.config/starship.toml"
 cp -- "$repo/config/cava/config" "$HOME/.config/cava/config"
 cp -- "$repo/config/btop/btop.conf" "$HOME/.config/btop/btop.conf"
@@ -481,6 +482,7 @@ for required_file in \
     "$HOME/.config/quickshell/windows11/shell.qml" \
     "$HOME/.config/waybar/windows11/config.jsonc" \
     "$HOME/.config/kitty/kitty.conf" \
+    "$HOME/.config/kitty/resize_font.py" \
     "$HOME/.config/starship.toml" \
     "$HOME/.local/bin/windows-shell" \
     "$HOME/.local/bin/windows-workspace-cycle" \
