@@ -467,10 +467,12 @@ def main() -> int:
         selected = slugify(data["name"]); save(selected, data); apply(selected, data); return 0
     if command == "rename" and len(sys.argv) >= 4:
         selected = sys.argv[2]
-        if selected == "windows-11": raise ValueError("The factory preset cannot be renamed")
         old_slug, data = load(selected); data["name"] = " ".join(sys.argv[3:]).strip() or data["name"]
         renamed = slugify(data["name"]); destination = PRESETS / renamed
         if destination.exists() and renamed != old_slug: raise ValueError("A preset with that name already exists")
+        if selected == "windows-11":
+            if renamed == "windows-11": raise ValueError("Give the copy a new name")
+            save(renamed, data); apply(renamed, data); return 0
         if renamed != old_slug: shutil.move(PRESETS / old_slug, destination)
         save(renamed, data); apply(renamed, data); return 0
     if command == "delete" and len(sys.argv) == 3:

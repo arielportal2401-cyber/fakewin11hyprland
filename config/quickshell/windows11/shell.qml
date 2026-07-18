@@ -17,6 +17,7 @@ import Quickshell
       property bool bluetoothDetailsOpen: false
       property bool settingsDetailsOpen: false
       property bool personalizationOpen: false
+      property bool systemDialogOpen: false
       property var activePreset: ({})
       property var availablePresets: []
       property bool calendarOpen: false
@@ -83,13 +84,69 @@ import Quickshell
       }
 
       function openSystemDialog(dialog) {
+          root.systemDialogOpen = true
           dialog.open()
-          Qt.callLater(root.closeRightMenu)
+          root.closeRightMenu()
       }
 
       function colorHex(color) {
           function channel(value) { return Math.round(value * 255).toString(16).padStart(2, "0") }
           return "#" + channel(color.r) + channel(color.g) + channel(color.b)
+      }
+
+      // Keep native dialogs at shell scope. Hiding the right-side panel must
+      // not destroy a picker that was launched from Personalization.
+      FileDialog {
+          id: startIconPicker
+          parentWindow: quickSettingsSurface.Window.window
+          title: "Choose a Start icon"
+          nameFilters: ["Images (*.png *.svg *.webp *.jpg *.jpeg)"]
+          onAccepted: { root.systemDialogOpen = false; root.changePersonalization("icons.start", selectedFile.toString().replace("file://", "")) }
+          onRejected: root.systemDialogOpen = false
+      }
+      FileDialog {
+          id: wallpaperPicker
+          parentWindow: quickSettingsSurface.Window.window
+          title: "Choose a wallpaper"
+          nameFilters: ["Images (*.png *.webp *.jpg *.jpeg)"]
+          onAccepted: { root.systemDialogOpen = false; Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/windows-personalization", "wallpaper", selectedFile.toString().replace("file://", "")]) }
+          onRejected: root.systemDialogOpen = false
+      }
+      FileDialog {
+          id: searchIconPicker
+          parentWindow: quickSettingsSurface.Window.window
+          title: "Choose a Search icon"
+          nameFilters: ["Images (*.png *.svg *.webp *.jpg *.jpeg)"]
+          onAccepted: { root.systemDialogOpen = false; root.changePersonalization("icons.search", selectedFile.toString().replace("file://", "")) }
+          onRejected: root.systemDialogOpen = false
+      }
+      FileDialog {
+          id: taskViewIconPicker
+          parentWindow: quickSettingsSurface.Window.window
+          title: "Choose a Task View icon"
+          nameFilters: ["Images (*.png *.svg *.webp *.jpg *.jpeg)"]
+          onAccepted: { root.systemDialogOpen = false; root.changePersonalization("icons.task_view", selectedFile.toString().replace("file://", "")) }
+          onRejected: root.systemDialogOpen = false
+      }
+      ColorDialog {
+          id: backgroundPicker
+          parentWindow: quickSettingsSurface.Window.window
+          title: "Taskbar background"
+          onAccepted: {
+              root.systemDialogOpen = false
+              root.changePersonalization("appearance.background", root.colorHex(selectedColor))
+          }
+          onRejected: root.systemDialogOpen = false
+      }
+      ColorDialog {
+          id: accentPicker
+          parentWindow: quickSettingsSurface.Window.window
+          title: "Accent color"
+          onAccepted: {
+              root.systemDialogOpen = false
+              root.changePersonalization("appearance.accent", root.colorHex(selectedColor))
+          }
+          onRejected: root.systemDialogOpen = false
       }
 
       Process {
@@ -814,7 +871,7 @@ import Quickshell
       // Windows 11-style Quick Settings flyout
       PanelWindow {
           id: quickSettings
-          visible: root.quickSettingsOpen
+          visible: root.quickSettingsOpen || root.systemDialogOpen
           WlrLayershell.namespace: "windows-quick-settings"
           anchors {
               left: root.taskbarEdge === "left"
@@ -828,8 +885,8 @@ import Quickshell
               top: root.taskbarEdge === "top" ? root.panelGap : 0
               bottom: root.taskbarEdge === "bottom" ? root.panelGap : 0
           }
-          implicitWidth: root.personalizationOpen ? 760 : 360
-          implicitHeight: root.personalizationOpen ? 650 : root.settingsDetailsOpen ? 520 : (root.wifiDetailsOpen || root.bluetoothDetailsOpen) ? 420 : 286
+          implicitWidth: root.personalizationOpen || root.systemDialogOpen ? 760 : 360
+          implicitHeight: root.personalizationOpen || root.systemDialogOpen ? 650 : root.settingsDetailsOpen ? 520 : (root.wifiDetailsOpen || root.bluetoothDetailsOpen) ? 420 : 286
           Behavior on implicitHeight {
               NumberAnimation { duration: 240; easing.type: Easing.OutCubic }
           }
@@ -838,6 +895,7 @@ import Quickshell
 
           Rectangle {
               id: quickSettingsSurface
+              visible: root.quickSettingsOpen
               anchors.fill: parent
               radius: 10
               color: "#aa202631"
@@ -1327,33 +1385,6 @@ import Quickshell
                   visible: root.personalizationOpen
                   z: 20
 
-                  FileDialog {
-                      id: startIconPicker
-                      title: "Choose a Start icon"
-                      nameFilters: ["Images (*.png *.svg *.webp *.jpg *.jpeg)"]
-                      onAccepted: root.changePersonalization("icons.start", selectedFile.toString().replace("file://", ""))
-                  }
-                  FileDialog {
-                      id: wallpaperPicker
-                      title: "Choose a wallpaper"
-                      nameFilters: ["Images (*.png *.webp *.jpg *.jpeg)"]
-                      onAccepted: Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/windows-personalization", "wallpaper", selectedFile.toString().replace("file://", "")])
-                  }
-                  FileDialog {
-                      id: searchIconPicker
-                      title: "Choose a Search icon"
-                      nameFilters: ["Images (*.png *.svg *.webp *.jpg *.jpeg)"]
-                      onAccepted: root.changePersonalization("icons.search", selectedFile.toString().replace("file://", ""))
-                  }
-                  FileDialog {
-                      id: taskViewIconPicker
-                      title: "Choose a Task View icon"
-                      nameFilters: ["Images (*.png *.svg *.webp *.jpg *.jpeg)"]
-                      onAccepted: root.changePersonalization("icons.task_view", selectedFile.toString().replace("file://", ""))
-                  }
-                  ColorDialog { id: backgroundPicker; title: "Taskbar background"; onAccepted: root.changePersonalization("appearance.background", root.colorHex(selectedColor)) }
-                  ColorDialog { id: accentPicker; title: "Accent color"; onAccepted: root.changePersonalization("appearance.accent", root.colorHex(selectedColor)) }
-
                   Rectangle { anchors.fill: parent; radius: 10; color: "#e0202631" }
                   Rectangle {
                       id: personalizationBack
@@ -1392,14 +1423,13 @@ import Quickshell
                               }
                               Rectangle {
                                   width: parent.width; height: 46; radius: 8; color: "#202a3542"
-                                  TextInput { id: presetName; anchors.left: parent.left; anchors.right: renameButton.left; anchors.margins: 12; anchors.verticalCenter: parent.verticalCenter; text: root.activePreset.name || "My Windows"; color: "white"; selectByMouse: true; font.pixelSize: 12 }
+                                  TextInput { id: presetName; anchors.left: parent.left; anchors.right: renameButton.left; anchors.margins: 12; anchors.verticalCenter: parent.verticalCenter; text: root.activePreset.slug === "windows-11" ? "My Windows" : (root.activePreset.name || "My Windows"); color: "white"; selectByMouse: true; font.pixelSize: 12 }
                                   Rectangle {
                                       id: renameButton; anchors.right: cloneButton.left; anchors.rightMargin: 5; anchors.verticalCenter: parent.verticalCenter
                                       width: 70; height: 36; radius: 6
-                                      opacity: root.activePreset.slug === "windows-11" ? 0.38 : 1
-                                      color: renameMouse.containsMouse && root.activePreset.slug !== "windows-11" ? "#526171" : "#35414e"
+                                      color: renameMouse.containsMouse ? "#526171" : "#35414e"
                                       Text { anchors.centerIn: parent; text: "Rename"; color: "white"; font.pixelSize: 11 }
-                                      MouseArea { id: renameMouse; anchors.fill: parent; hoverEnabled: true; enabled: root.activePreset.slug !== "windows-11"; onClicked: Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/windows-personalization", "rename", root.activePreset.slug, presetName.text]) }
+                                      MouseArea { id: renameMouse; anchors.fill: parent; hoverEnabled: true; onClicked: Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/windows-personalization", "rename", root.activePreset.slug, presetName.text]) }
                                   }
                                   Rectangle {
                                       id: cloneButton; anchors.right: deleteButton.left; anchors.rightMargin: 5; anchors.verticalCenter: parent.verticalCenter
