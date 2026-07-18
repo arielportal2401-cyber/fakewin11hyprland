@@ -173,7 +173,7 @@ def indicator_assets(edge: str) -> tuple[Path, Path]:
     return outputs[0], outputs[1]
 
 
-def copy_icon(slug: str, key: str, source: str) -> str:
+def copy_icon(slug: str, key: str, source: str, size: int) -> str:
     if not source:
         return ""
     path = Path(source).expanduser()
@@ -181,8 +181,36 @@ def copy_icon(slug: str, key: str, source: str) -> str:
         return source if source.startswith(str(PRESETS)) else ""
     target_dir = PRESETS / slug / "assets"
     target_dir.mkdir(parents=True, exist_ok=True)
-    target = target_dir / f"{key}{path.suffix.lower()}"
-    shutil.copy2(path, target)
+    target = target_dir / f"{key}.png"
+    identify = subprocess.run(
+        ["magick", "identify", "-format", "%w %h %s\n", str(path)],
+        text=True, capture_output=True, check=False,
+    )
+    frames = []
+    for line in identify.stdout.splitlines():
+        try:
+            width, height, scene = (int(item) for item in line.split())
+            frames.append((width * height, scene))
+        except (TypeError, ValueError):
+            continue
+    source_frame = f"{path}[{max(frames)[1]}]" if len(frames) > 1 else str(path)
+    fd, temporary_name = tempfile.mkstemp(prefix=f"{key}.", suffix=".png", dir=target_dir)
+    os.close(fd)
+    try:
+        converted = subprocess.run([
+            "magick", source_frame, "-background", "none", "-alpha", "on",
+            "-resize", f"{size}x{size}", "-gravity", "center",
+            "-extent", f"{size}x{size}", temporary_name,
+        ], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+        if converted.returncode != 0:
+            raise ValueError(f"Could not prepare {key} icon: {converted.stderr.strip()}")
+        os.replace(temporary_name, target)
+    finally:
+        if os.path.exists(temporary_name):
+            os.unlink(temporary_name)
+    for old_asset in target_dir.glob(f"{key}.*"):
+        if old_asset != target:
+            old_asset.unlink()
     return str(target)
 
 
@@ -280,6 +308,9 @@ window#waybar.windows11-taskbar {{
   min-width: {bar['size'] - 4 if not horizontal else 44}px;
   min-height: {bar['size'] - 4 if horizontal else 44}px;
 }}
+#custom-start, #custom-search, #custom-taskview {{
+  background-size: {look['icon_size']}px {look['icon_size']}px;
+}}
 {dimension_overrides}
 #workspaces button.active {{ box-shadow: inset 0 -2px {look['accent']}; }}
 #taskbar button {{
@@ -342,7 +373,9 @@ def apply(slug: str, data: dict, restart: bool = True) -> None:
         slug = "my-windows"
         data["name"] = "My Windows"
     for key in ("start", "search", "task_view"):
-        data["icons"][key] = copy_icon(slug, key, data["icons"].get(key, ""))
+        data["icons"][key] = copy_icon(
+            slug, key, data["icons"].get(key, ""), data["appearance"]["icon_size"]
+        )
     backup = backup_files()
     try:
         generate_waybar(data)

@@ -22,6 +22,7 @@ import Quickshell
       property var availablePresets: []
       property bool personalizationDirty: false
       property var personalizationCommands: []
+      property string filePickerTarget: ""
       property bool calendarOpen: false
       property bool notificationsOpen: false
       property bool powerOpen: false
@@ -182,44 +183,42 @@ import Quickshell
           root.closeRightMenu()
       }
 
+      function openImagePicker(target, title, includeSvg) {
+          if (imagePicker.running) return
+          root.filePickerTarget = target
+          root.systemDialogOpen = true
+          const extensions = includeSvg
+              ? "*.png *.svg *.webp *.jpg *.jpeg *.ico"
+              : "*.png *.webp *.jpg *.jpeg"
+          imagePicker.command = [
+              "zenity", "--file-selection", "--title=" + title,
+              "--filename=" + Quickshell.env("HOME") + "/Pictures/",
+              "--file-filter=Images | " + extensions,
+              "--file-filter=All files | *"
+          ]
+          imagePicker.running = true
+          root.closeRightMenu()
+      }
+
       function colorHex(color) {
           function channel(value) { return Math.round(value * 255).toString(16).padStart(2, "0") }
           return "#" + channel(color.r) + channel(color.g) + channel(color.b)
       }
 
-      // Keep native dialogs at shell scope. Hiding the right-side panel must
-      // not destroy a picker that was launched from Personalization.
-      FileDialog {
-          id: startIconPicker
-          parentWindow: quickSettingsSurface.Window.window
-          title: "Choose a Start icon"
-          nameFilters: ["Images (*.png *.svg *.webp *.jpg *.jpeg)"]
-          onAccepted: { root.systemDialogOpen = false; root.changePersonalization("icons.start", selectedFile.toString().replace("file://", "")) }
-          onRejected: root.systemDialogOpen = false
-      }
-      FileDialog {
-          id: wallpaperPicker
-          parentWindow: quickSettingsSurface.Window.window
-          title: "Choose a wallpaper"
-          nameFilters: ["Images (*.png *.webp *.jpg *.jpeg)"]
-          onAccepted: { root.systemDialogOpen = false; root.changePersonalization("wallpaper", selectedFile.toString().replace("file://", "")) }
-          onRejected: root.systemDialogOpen = false
-      }
-      FileDialog {
-          id: searchIconPicker
-          parentWindow: quickSettingsSurface.Window.window
-          title: "Choose a Search icon"
-          nameFilters: ["Images (*.png *.svg *.webp *.jpg *.jpeg)"]
-          onAccepted: { root.systemDialogOpen = false; root.changePersonalization("icons.search", selectedFile.toString().replace("file://", "")) }
-          onRejected: root.systemDialogOpen = false
-      }
-      FileDialog {
-          id: taskViewIconPicker
-          parentWindow: quickSettingsSurface.Window.window
-          title: "Choose a Task View icon"
-          nameFilters: ["Images (*.png *.svg *.webp *.jpg *.jpeg)"]
-          onAccepted: { root.systemDialogOpen = false; root.changePersonalization("icons.task_view", selectedFile.toString().replace("file://", "")) }
-          onRejected: root.systemDialogOpen = false
+      // Qt 6.11's native QtQuick FileDialog currently crashes while opening on
+      // this stack. Zenity still uses the desktop's normal GTK/portal chooser,
+      // but runs out of process so a picker bug cannot take down the shell.
+      Process {
+          id: imagePicker
+          stdout: StdioCollector {
+              onStreamFinished: {
+                  const selectedPath = text.trim()
+                  root.systemDialogOpen = false
+                  if (selectedPath.length > 0 && root.filePickerTarget.length > 0)
+                      root.changePersonalization(root.filePickerTarget, selectedPath)
+                  root.filePickerTarget = ""
+              }
+          }
       }
       ColorDialog {
           id: backgroundPicker
@@ -1625,24 +1624,24 @@ import Quickshell
                                   Rectangle {
                                       width: 150; height: 40; radius: 7; color: iconMouse.containsMouse ? "#394552" : "#252e39"
                                       Text { anchors.centerIn: parent; text: "Choose Start icon"; color: "white"; font.pixelSize: 11 }
-                                      MouseArea { id: iconMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.openSystemDialog(startIconPicker) }
+                                      MouseArea { id: iconMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.openImagePicker("icons.start", "Choose a Start icon", true) }
                                   }
                                   Rectangle {
                                       width: 150; height: 40; radius: 7; color: wallpaperMouse.containsMouse ? "#394552" : "#252e39"
                                       Text { anchors.centerIn: parent; text: "Choose wallpaper"; color: "white"; font.pixelSize: 11 }
-                                      MouseArea { id: wallpaperMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.openSystemDialog(wallpaperPicker) }
+                                      MouseArea { id: wallpaperMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.openImagePicker("wallpaper", "Choose a wallpaper", false) }
                                   }
                               }
                               Row { spacing: 8
                                   Rectangle {
                                       width: 150; height: 40; radius: 7; color: searchIconMouse.containsMouse ? "#394552" : "#252e39"
                                       Text { anchors.centerIn: parent; text: "Choose Search icon"; color: "white"; font.pixelSize: 11 }
-                                      MouseArea { id: searchIconMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.openSystemDialog(searchIconPicker) }
+                                      MouseArea { id: searchIconMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.openImagePicker("icons.search", "Choose a Search icon", true) }
                                   }
                                   Rectangle {
                                       width: 150; height: 40; radius: 7; color: taskViewIconMouse.containsMouse ? "#394552" : "#252e39"
                                       Text { anchors.centerIn: parent; text: "Choose Task View icon"; color: "white"; font.pixelSize: 11 }
-                                      MouseArea { id: taskViewIconMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.openSystemDialog(taskViewIconPicker) }
+                                      MouseArea { id: taskViewIconMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.openImagePicker("icons.task_view", "Choose a Task View icon", true) }
                                   }
                               }
                           }

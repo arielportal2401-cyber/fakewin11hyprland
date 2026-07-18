@@ -106,7 +106,7 @@ if ! $assume_yes; then
 fi
 
 dependencies=(
-    hyprctl quickshell waybar rofi rg jq python3 yad awww grim slurp wl-copy
+    hyprctl quickshell waybar rofi rg jq python3 yad zenity awww grim slurp wl-copy
     hyprlock thunar kitty fastfetch iwctl bluetoothctl pavucontrol playerctl
     brightnessctl satty notify-send magick wpctl pactl swayosd-client cliphist
     xdg-desktop-portal xdg-desktop-portal-hyprland xdg-user-dir xdg-mime pipewire flatpak
