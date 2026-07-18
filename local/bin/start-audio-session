@@ -1,0 +1,12 @@
+#!/bin/sh
+
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/audio"
+mkdir -p "$state_dir"
+
+pgrep -x pipewire >/dev/null 2>&1 || \
+    pipewire >>"$state_dir/pipewire.log" 2>&1 &
+sleep 1
+pgrep -x wireplumber >/dev/null 2>&1 || \
+    wireplumber >>"$state_dir/wireplumber.log" 2>&1 &
+pgrep -x pipewire-pulse >/dev/null 2>&1 || \
+    pipewire-pulse >>"$state_dir/pipewire-pulse.log" 2>&1 &
