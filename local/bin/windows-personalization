@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import copy
+import fcntl
 import json
 import os
 import re
@@ -45,6 +46,7 @@ DEFAULT = {
     "appearance": {
         "background": "#0d131d", "opacity": 0.62, "accent": "#60cdff",
         "text": "#f5f5f5", "radius": 0, "icon_size": 25, "spacing": 0,
+        "window_rounding": 8,
     },
     "icons": {"start": "", "search": "", "task_view": ""},
     "motion": {
@@ -114,6 +116,7 @@ def validate(raw: dict) -> dict:
     look["opacity"] = max(0.05, min(1.0, float(look["opacity"])))
     look["radius"] = max(0, min(32, int(look["radius"])))
     look["icon_size"] = max(14, min(48, int(look["icon_size"])))
+    look["window_rounding"] = max(0, min(32, int(look["window_rounding"])))
     motion["duration_ms"] = max(0, min(1200, int(motion["duration_ms"])))
     motion["distance"] = max(0, min(160, int(motion["distance"])))
     for key in ("background", "accent", "text"):
@@ -287,7 +290,11 @@ def generate_hypr(data: dict) -> None:
     layer_style = f"slide {edge}" if motion["shell_panels"] else "fade"
     workspace_style = axis if motion["workspaces"] else "fade"
     duration = max(1, round(motion["duration_ms"] / 70))
-    block = f"""animations {{
+    block = f"""decoration {{
+    rounding = {data['appearance']['window_rounding']}
+}}
+
+animations {{
     animation = windowsIn, 1, {duration}, spring, {window_style}
     animation = windowsOut, 1, {duration}, fluentIn, {window_style}
     animation = layersIn, 1, {duration}, spring, {layer_style}
@@ -443,7 +450,7 @@ def main() -> int:
     ensure()
     command = sys.argv[1] if len(sys.argv) > 1 else "state"
     if command == "state":
-        slug, data = load()
+        slug, data = load(sys.argv[2] if len(sys.argv) > 2 else None)
         presets = []
         for path in sorted(PRESETS.glob("*/preset.json")):
             item = json.loads(path.read_text(encoding="utf-8"))
@@ -453,18 +460,33 @@ def main() -> int:
         slug = sys.argv[2] if len(sys.argv) > 2 else load()[0]; selected, data = load(slug); apply(selected, data); return 0
     if command == "sync":
         selected, data = load(); apply(selected, data, restart=False); return 0
-    if command == "set" and len(sys.argv) == 4:
-        selected, data = load(); keys = sys.argv[2].split("."); target = data
+    if command in {"set", "stage"} and len(sys.argv) in {4, 5}:
+        if command == "stage":
+            requested, key_name, raw = sys.argv[2], sys.argv[3], sys.argv[4]
+            path = preset_path(requested)
+            if path.is_file(): selected, data = load(requested)
+            else:
+                selected, data = requested, load("windows-11")[1]
+                data["name"] = "My Windows" if requested == "my-windows" else requested.replace("-", " ").title()
+        else:
+            selected, data = load(); key_name, raw = sys.argv[2], sys.argv[3]
+        keys = key_name.split("."); target = data
         for key in keys[:-1]: target = target[key]
-        old, raw = target[keys[-1]], sys.argv[3]
+        old = target[keys[-1]]
         if isinstance(old, bool): value = raw.casefold() in {"1", "true", "yes", "on"}
         elif isinstance(old, int): value = int(float(raw))
         elif isinstance(old, float): value = float(raw)
         else: value = raw
-        target[keys[-1]] = value; apply(selected, data); return 0
+        target[keys[-1]] = value
+        if selected == "windows-11":
+            selected, data["name"] = "my-windows", "My Windows"
+        save(selected, data); return 0
     if command == "clone" and len(sys.argv) >= 3:
-        _, data = load(); data["name"] = " ".join(sys.argv[2:]).strip() or "My Windows"
-        selected = slugify(data["name"]); save(selected, data); apply(selected, data); return 0
+        explicit_source = len(sys.argv) >= 4 and preset_path(sys.argv[2]).is_file()
+        source = sys.argv[2] if explicit_source else load()[0]
+        name_parts = sys.argv[3:] if explicit_source else sys.argv[2:]
+        _, data = load(source); data["name"] = " ".join(name_parts).strip() or "My Windows"
+        selected = slugify(data["name"]); save(selected, data); return 0
     if command == "rename" and len(sys.argv) >= 4:
         selected = sys.argv[2]
         old_slug, data = load(selected); data["name"] = " ".join(sys.argv[3:]).strip() or data["name"]
@@ -472,29 +494,38 @@ def main() -> int:
         if destination.exists() and renamed != old_slug: raise ValueError("A preset with that name already exists")
         if selected == "windows-11":
             if renamed == "windows-11": raise ValueError("Give the copy a new name")
-            save(renamed, data); apply(renamed, data); return 0
+            save(renamed, data); return 0
         if renamed != old_slug: shutil.move(PRESETS / old_slug, destination)
-        save(renamed, data); apply(renamed, data); return 0
+        save(renamed, data); return 0
     if command == "delete" and len(sys.argv) == 3:
         selected = sys.argv[2]
         if selected == "windows-11": raise ValueError("The factory preset cannot be deleted")
         target = PRESETS / selected
         if not preset_path(selected).is_file(): raise ValueError("That preset does not exist")
-        shutil.rmtree(target); factory_slug, factory = load("windows-11"); apply(factory_slug, factory); return 0
+        shutil.rmtree(target)
+        if ACTIVE.read_text(encoding="utf-8").strip() == selected: atomic_write(ACTIVE, "windows-11\n")
+        return 0
     if command == "icon" and len(sys.argv) == 4:
-        selected, data = load(); data["icons"][sys.argv[2]] = sys.argv[3]; apply(selected, data); return 0
+        selected, data = load(); data["icons"][sys.argv[2]] = sys.argv[3]
+        if selected == "windows-11": selected, data["name"] = "my-windows", "My Windows"
+        save(selected, data); return 0
     if command == "wallpaper" and len(sys.argv) == 3:
-        selected, data = load(); data["wallpaper"] = sys.argv[2]; apply(selected, data); return 0
+        selected, data = load(); data["wallpaper"] = sys.argv[2]
+        if selected == "windows-11": selected, data["name"] = "my-windows", "My Windows"
+        save(selected, data); return 0
     if command == "list":
         for path in sorted(PRESETS.glob("*/preset.json")):
             print(path.parent.name + "\t" + json.loads(path.read_text()).get("name", path.parent.name))
         return 0
-    raise SystemExit("usage: windows-personalization [state|list|apply PRESET|sync|set KEY VALUE|clone NAME|rename PRESET NAME|delete PRESET|icon NAME FILE|wallpaper FILE]")
+    raise SystemExit("usage: windows-personalization [state [PRESET]|list|apply PRESET|sync|set KEY VALUE|stage PRESET KEY VALUE|clone [SOURCE] NAME|rename PRESET NAME|delete PRESET|icon NAME FILE|wallpaper FILE]")
 
 
 if __name__ == "__main__":
     try:
-        raise SystemExit(main())
+        STATE.mkdir(parents=True, exist_ok=True)
+        with (STATE / "command.lock").open("w") as command_lock:
+            fcntl.flock(command_lock, fcntl.LOCK_EX)
+            raise SystemExit(main())
     except Exception as error:
         print(f"Personalization error: {error}", file=sys.stderr)
         raise

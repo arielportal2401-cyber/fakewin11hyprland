@@ -21,6 +21,7 @@ start_shell() {
         quickshell --no-duplicate --daemonize --path "$WINDOWS_QML" >/dev/null 2>&1
     pkill -f "$HOME/.config/waybar/windows11/config.jsonc" 2>/dev/null || true
     hyprctl dispatch exec -- "$HOME/.local/bin/windows-waybar" >/dev/null
+    hyprctl dispatch exec -- "$HOME/.local/bin/windows-fit-workarea" >/dev/null
     hyprctl dispatch exec -- "$HOME/.local/bin/windows-taskbar-watch" >/dev/null
     hyprctl dispatch exec -- "$HOME/.local/bin/windows-layout-watch" >/dev/null
 }

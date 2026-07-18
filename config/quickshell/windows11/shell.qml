@@ -20,6 +20,8 @@ import Quickshell
       property bool systemDialogOpen: false
       property var activePreset: ({})
       property var availablePresets: []
+      property bool personalizationDirty: false
+      property var personalizationCommands: []
       property bool calendarOpen: false
       property bool notificationsOpen: false
       property bool powerOpen: false
@@ -63,7 +65,98 @@ import Quickshell
       }
 
       function changePersonalization(key, value) {
-          Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/windows-personalization", "set", key, String(value)])
+          const changed = JSON.parse(JSON.stringify(root.activePreset))
+          if (changed.slug === "windows-11") {
+              changed.slug = "my-windows"
+              changed.name = "My Windows"
+              root.upsertPreset("", changed.slug, changed.name)
+          }
+          const keys = key.split(".")
+          let target = changed
+          for (let index = 0; index < keys.length - 1; index++) target = target[keys[index]]
+          target[keys[keys.length - 1]] = value
+          root.activePreset = changed
+          root.personalizationDirty = true
+          root.queuePersonalization(["stage", changed.slug, key, String(value)])
+      }
+
+      function queuePersonalization(arguments) {
+          const queued = root.personalizationCommands.slice()
+          queued.push([Quickshell.env("HOME") + "/.local/bin/windows-personalization"].concat(arguments))
+          root.personalizationCommands = queued
+          root.runNextPersonalizationCommand()
+      }
+
+      function runNextPersonalizationCommand() {
+          if (personalizationWriter.running || root.personalizationCommands.length === 0) return
+          const queued = root.personalizationCommands.slice()
+          personalizationWriter.command = queued.shift()
+          root.personalizationCommands = queued
+          personalizationWriter.running = true
+      }
+
+      function presetSlug(name) {
+          const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
+          return slug.length > 0 ? slug : "custom-preset"
+      }
+
+      function upsertPreset(oldSlug, newSlug, name) {
+          const updated = []
+          let found = false
+          for (let index = 0; index < root.availablePresets.length; index++) {
+              const item = root.availablePresets[index]
+              if (item.slug === oldSlug || item.slug === newSlug) {
+                  if (!found) updated.push({ slug: newSlug, name: name, protected: false })
+                  found = true
+              } else updated.push(item)
+          }
+          if (!found) updated.push({ slug: newSlug, name: name, protected: false })
+          root.availablePresets = updated
+      }
+
+      function previewPreset(slug) {
+          if (presetPreview.running) return
+          presetPreview.command = [Quickshell.env("HOME") + "/.local/bin/windows-personalization", "state", slug]
+          presetPreview.running = true
+      }
+
+      function renamePreset(name) {
+          const cleanName = name.trim().length > 0 ? name.trim() : root.activePreset.name
+          const oldSlug = root.activePreset.slug
+          const newSlug = root.presetSlug(cleanName)
+          const changed = JSON.parse(JSON.stringify(root.activePreset))
+          changed.slug = newSlug
+          changed.name = cleanName
+          root.activePreset = changed
+          root.upsertPreset(oldSlug === "windows-11" ? "" : oldSlug, newSlug, cleanName)
+          root.personalizationDirty = true
+          root.queuePersonalization(["rename", oldSlug, cleanName])
+      }
+
+      function clonePreset(name) {
+          const cleanName = name.trim().length > 0 ? name.trim() : "My Shell"
+          const sourceSlug = root.activePreset.slug
+          const newSlug = root.presetSlug(cleanName)
+          const changed = JSON.parse(JSON.stringify(root.activePreset))
+          changed.slug = newSlug
+          changed.name = cleanName
+          root.activePreset = changed
+          root.upsertPreset("", newSlug, cleanName)
+          root.personalizationDirty = true
+          root.queuePersonalization(["clone", sourceSlug, cleanName])
+      }
+
+      function deletePreset(slug) {
+          root.queuePersonalization(["delete", slug])
+          root.availablePresets = root.availablePresets.filter(item => item.slug !== slug)
+          root.previewPreset("windows-11")
+      }
+
+      function applyPersonalization() {
+          if (!root.personalizationDirty || !root.activePreset.slug) return
+          root.personalizationDirty = false
+          root.closeRightMenu()
+          root.queuePersonalization(["apply", root.activePreset.slug])
       }
 
       function closeRightMenu() {
@@ -109,7 +202,7 @@ import Quickshell
           parentWindow: quickSettingsSurface.Window.window
           title: "Choose a wallpaper"
           nameFilters: ["Images (*.png *.webp *.jpg *.jpeg)"]
-          onAccepted: { root.systemDialogOpen = false; Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/windows-personalization", "wallpaper", selectedFile.toString().replace("file://", "")]) }
+          onAccepted: { root.systemDialogOpen = false; root.changePersonalization("wallpaper", selectedFile.toString().replace("file://", "")) }
           onRejected: root.systemDialogOpen = false
       }
       FileDialog {
@@ -170,6 +263,28 @@ import Quickshell
                   }
               }
           }
+      }
+      Process {
+          id: presetPreview
+          stdout: StdioCollector {
+              onStreamFinished: {
+                  try {
+                      const preset = JSON.parse(text)
+                      root.activePreset = preset
+                      root.availablePresets = preset.presets || root.availablePresets
+                      root.personalizationDirty = true
+                  } catch (error) {
+                      console.log("Could not preview personalization preset:", error)
+                  }
+              }
+          }
+      }
+      Process { id: personalizationWriter }
+      Timer {
+          interval: 60
+          repeat: true
+          running: personalizationWriter.running || root.personalizationCommands.length > 0
+          onTriggered: root.runNextPersonalizationCommand()
       }
       readonly property string assetPath: "file://" + Quickshell.env("HOME") + "/.config/quickshell/windows11/assets/"
 
@@ -556,6 +671,13 @@ import Quickshell
               root.closeAllMenus()
               root.quickSettingsOpen = true
               root.openSettingsPage("home")
+          }
+
+          function openPersonalization(): void {
+              root.closeAllMenus()
+              root.quickSettingsOpen = true
+              root.openSettingsPage("home")
+              root.personalizationOpen = true
           }
 
           function toggleCalendar(): void {
@@ -1394,7 +1516,16 @@ import Quickshell
                       MouseArea { id: personalizationBackMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.personalizationOpen = false }
                   }
                   Text { anchors.left: personalizationBack.right; anchors.leftMargin: 12; anchors.verticalCenter: personalizationBack.verticalCenter; text: "Personalization"; color: "white"; font.pixelSize: 22; font.bold: true; font.family: root.uiFont }
-                  Text { anchors.right: parent.right; anchors.rightMargin: 20; anchors.verticalCenter: personalizationBack.verticalCenter; text: root.activePreset.name || "Windows 11"; color: "#60cdff"; font.pixelSize: 12; font.family: root.uiFont }
+                  Rectangle {
+                      id: applyChangesButton
+                      anchors.right: parent.right; anchors.rightMargin: 16; anchors.verticalCenter: personalizationBack.verticalCenter
+                      width: 118; height: 36; radius: 7
+                      opacity: root.personalizationDirty ? 1 : 0.45
+                      color: applyChangesMouse.containsMouse && root.personalizationDirty ? "#67b9e8" : "#3784ad"
+                      Text { anchors.centerIn: parent; text: "Apply changes"; color: "white"; font.pixelSize: 11; font.bold: true }
+                      MouseArea { id: applyChangesMouse; anchors.fill: parent; hoverEnabled: true; enabled: root.personalizationDirty; onClicked: root.applyPersonalization() }
+                  }
+                  Text { anchors.right: applyChangesButton.left; anchors.rightMargin: 12; anchors.verticalCenter: personalizationBack.verticalCenter; text: root.activePreset.name || "Windows 11"; color: root.personalizationDirty ? "#f3c96b" : "#60cdff"; font.pixelSize: 12; font.family: root.uiFont }
 
                   Flickable {
                       anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom
@@ -1417,7 +1548,7 @@ import Quickshell
                                           width: 156; height: 42; radius: 7
                                           color: root.activePreset.slug === modelData.slug ? "#405a7187" : presetMouse.containsMouse ? "#30414d5b" : "#202a3542"
                                           Text { anchors.centerIn: parent; text: modelData.name; color: "white"; font.pixelSize: 11; elide: Text.ElideRight; width: parent.width - 16; horizontalAlignment: Text.AlignHCenter }
-                                          MouseArea { id: presetMouse; anchors.fill: parent; hoverEnabled: true; onClicked: Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/windows-personalization", "apply", modelData.slug]) }
+                                          MouseArea { id: presetMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.previewPreset(modelData.slug) }
                                       }
                                   }
                               }
@@ -1429,13 +1560,13 @@ import Quickshell
                                       width: 70; height: 36; radius: 6
                                       color: renameMouse.containsMouse ? "#526171" : "#35414e"
                                       Text { anchors.centerIn: parent; text: "Rename"; color: "white"; font.pixelSize: 11 }
-                                      MouseArea { id: renameMouse; anchors.fill: parent; hoverEnabled: true; onClicked: Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/windows-personalization", "rename", root.activePreset.slug, presetName.text]) }
+                                      MouseArea { id: renameMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.renamePreset(presetName.text) }
                                   }
                                   Rectangle {
                                       id: cloneButton; anchors.right: deleteButton.left; anchors.rightMargin: 5; anchors.verticalCenter: parent.verticalCenter
                                       width: 72; height: 36; radius: 6; color: cloneMouse.containsMouse ? "#67b9e8" : "#3784ad"
                                       Text { anchors.centerIn: parent; text: "Save copy"; color: "white"; font.pixelSize: 10 }
-                                      MouseArea { id: cloneMouse; anchors.fill: parent; hoverEnabled: true; onClicked: Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/windows-personalization", "clone", presetName.text]) }
+                                      MouseArea { id: cloneMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.clonePreset(presetName.text) }
                                   }
                                   Rectangle {
                                       id: deleteButton; anchors.right: parent.right; anchors.rightMargin: 5; anchors.verticalCenter: parent.verticalCenter
@@ -1445,7 +1576,7 @@ import Quickshell
                                       Text { anchors.centerIn: parent; text: "Delete"; color: "white"; font.pixelSize: 10 }
                                       MouseArea {
                                           id: deleteMouse; anchors.fill: parent; hoverEnabled: true; enabled: root.activePreset.slug !== "windows-11"
-                                          onClicked: Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/windows-personalization", "delete", root.activePreset.slug])
+                                          onClicked: root.deletePreset(root.activePreset.slug)
                                       }
                                   }
                               }
@@ -1457,7 +1588,7 @@ import Quickshell
                                       model: ["bottom", "top", "left", "right"]
                                       delegate: Rectangle {
                                           required property string modelData
-                                          width: 76; height: 40; radius: 7; color: root.taskbarEdge === modelData ? "#3784ad" : edgeMouse.containsMouse ? "#394552" : "#252e39"
+                                          width: 76; height: 40; radius: 7; color: root.activePreset.taskbar && root.activePreset.taskbar.position === modelData ? "#3784ad" : edgeMouse.containsMouse ? "#394552" : "#252e39"
                                           Text { anchors.centerIn: parent; text: modelData.charAt(0).toUpperCase() + modelData.slice(1); color: "white"; font.pixelSize: 11 }
                                           MouseArea { id: edgeMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.changePersonalization("taskbar.position", modelData) }
                                       }
@@ -1466,9 +1597,9 @@ import Quickshell
                               Row {
                                   spacing: 8
                                   Text { anchors.verticalCenter: parent.verticalCenter; text: "Size"; color: "white"; width: 48 }
-                                  Rectangle { width: 34; height: 34; radius: 6; color: sizeDownMouse.containsMouse ? "#394552" : "#252e39"; Text { anchors.centerIn: parent; text: "−"; color: "white"; font.pixelSize: 18 } MouseArea { id: sizeDownMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.changePersonalization("taskbar.size", Math.max(34, root.taskbarThickness - 2)) } }
-                                  Text { anchors.verticalCenter: parent.verticalCenter; text: String(root.taskbarThickness); color: "#60cdff"; width: 34; horizontalAlignment: Text.AlignHCenter }
-                                  Rectangle { width: 34; height: 34; radius: 6; color: sizeUpMouse.containsMouse ? "#394552" : "#252e39"; Text { anchors.centerIn: parent; text: "+"; color: "white"; font.pixelSize: 18 } MouseArea { id: sizeUpMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.changePersonalization("taskbar.size", Math.min(96, root.taskbarThickness + 2)) } }
+                                  Rectangle { width: 34; height: 34; radius: 6; color: sizeDownMouse.containsMouse ? "#394552" : "#252e39"; Text { anchors.centerIn: parent; text: "−"; color: "white"; font.pixelSize: 18 } MouseArea { id: sizeDownMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.changePersonalization("taskbar.size", Math.max(34, root.activePreset.taskbar.size - 2)) } }
+                                  Text { anchors.verticalCenter: parent.verticalCenter; text: root.activePreset.taskbar ? String(root.activePreset.taskbar.size) : "48"; color: "#60cdff"; width: 34; horizontalAlignment: Text.AlignHCenter }
+                                  Rectangle { width: 34; height: 34; radius: 6; color: sizeUpMouse.containsMouse ? "#394552" : "#252e39"; Text { anchors.centerIn: parent; text: "+"; color: "white"; font.pixelSize: 18 } MouseArea { id: sizeUpMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.changePersonalization("taskbar.size", Math.min(96, root.activePreset.taskbar.size + 2)) } }
                               }
                               Text { text: "Colors and material"; color: "white"; font.pixelSize: 14; font.bold: true }
                               Row { spacing: 8
@@ -1547,6 +1678,14 @@ import Quickshell
                                       Text { anchors.right: parent.right; anchors.rightMargin: 10; anchors.verticalCenter: parent.verticalCenter; text: parent.enabledValue ? "On" : "Off"; color: parent.enabledValue ? "#60cdff" : "#9aa4af" }
                                       MouseArea { id: motionMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.changePersonalization("motion." + modelData.key, !parent.enabledValue) }
                                   }
+                              }
+                              Text { text: "Window corners"; color: "white"; font.pixelSize: 16; font.bold: true; font.family: root.uiFont }
+                              Row {
+                                  spacing: 8
+                                  Text { anchors.verticalCenter: parent.verticalCenter; text: "Rounding"; color: "white"; width: 72 }
+                                  Rectangle { width: 34; height: 34; radius: 6; color: roundingDownMouse.containsMouse ? "#394552" : "#252e39"; Text { anchors.centerIn: parent; text: "−"; color: "white"; font.pixelSize: 18 } MouseArea { id: roundingDownMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.changePersonalization("appearance.window_rounding", Math.max(0, root.activePreset.appearance.window_rounding - 1)) } }
+                                  Text { anchors.verticalCenter: parent.verticalCenter; text: root.activePreset.appearance ? String(root.activePreset.appearance.window_rounding) : "8"; color: "#60cdff"; width: 34; horizontalAlignment: Text.AlignHCenter }
+                                  Rectangle { width: 34; height: 34; radius: 6; color: roundingUpMouse.containsMouse ? "#394552" : "#252e39"; Text { anchors.centerIn: parent; text: "+"; color: "white"; font.pixelSize: 18 } MouseArea { id: roundingUpMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.changePersonalization("appearance.window_rounding", Math.min(32, root.activePreset.appearance.window_rounding + 1)) } }
                               }
                           }
                       }

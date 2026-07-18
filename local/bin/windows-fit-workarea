@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# Waybar updates the monitor's reserved edges asynchronously. Fit only large
+# floating windows; deliberately sized windows keep their user-chosen geometry.
+sleep 0.8
+monitors="$(hyprctl monitors -j)"
+
+hyprctl clients -j | jq -c '.[] | select(.floating and .fullscreen == 0 and (.workspace.id >= 1 and .workspace.id <= 10))' |
+while IFS= read -r client; do
+    address="$(jq -r '.address' <<< "$client")"
+    monitor_id="$(jq -r '.monitor' <<< "$client")"
+    monitor="$(jq -c --argjson id "$monitor_id" '.[] | select(.id == $id)' <<< "$monitors")"
+    [[ -n "$monitor" ]] || continue
+
+    monitor_width="$(jq -r '.width' <<< "$monitor")"
+    monitor_height="$(jq -r '.height' <<< "$monitor")"
+    window_width="$(jq -r '.size[0]' <<< "$client")"
+    window_height="$(jq -r '.size[1]' <<< "$client")"
+    ((window_width * 100 >= monitor_width * 85)) || continue
+    ((window_height * 100 >= monitor_height * 85)) || continue
+
+    x="$(jq -r '.x + .reserved[0] + 5' <<< "$monitor")"
+    y="$(jq -r '.y + .reserved[1] + 5' <<< "$monitor")"
+    width="$(jq -r '.width - .reserved[0] - .reserved[2] - 10' <<< "$monitor")"
+    height="$(jq -r '.height - .reserved[1] - .reserved[3] - 10' <<< "$monitor")"
+
+    hyprctl dispatch resizewindowpixel "exact $width $height,address:$address" >/dev/null
+    hyprctl dispatch movewindowpixel "exact $x $y,address:$address" >/dev/null
+done
