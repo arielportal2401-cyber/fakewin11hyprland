@@ -155,6 +155,12 @@ import Quickshell
 
       function applyPersonalization() {
           if (!root.personalizationDirty || !root.activePreset.slug) return
+          root.taskbarEdge = root.activePreset.taskbar.position
+          root.taskbarThickness = root.activePreset.taskbar.size
+          root.directionalMotion = root.activePreset.motion.follow_taskbar
+          root.animateShellPanels = root.activePreset.motion.shell_panels
+          root.motionDuration = root.activePreset.motion.duration_ms
+          root.motionDistance = root.activePreset.motion.distance
           root.personalizationDirty = false
           root.closeRightMenu()
           root.queuePersonalization(["apply", root.activePreset.slug])
@@ -1907,7 +1913,10 @@ import Quickshell
           Rectangle {
               anchors.fill: parent; radius: 11
               color: "#c7202631"; border.width: 1; border.color: "#38ffffff"
-              transformOrigin: Item.BottomRight; scale: root.trayOpen ? 1 : 0.88; opacity: root.trayOpen ? 1 : 0
+              transformOrigin: root.taskbarEdge === "left" ? Item.BottomLeft
+                  : root.taskbarEdge === "top" ? Item.TopRight
+                  : Item.BottomRight
+              scale: root.trayOpen ? 1 : 0.88; opacity: root.trayOpen ? 1 : 0
               transform: Translate {
                   x: root.panelOffsetX(root.trayOpen); y: root.panelOffsetY(root.trayOpen)
                   Behavior on x { NumberAnimation { duration: root.motionDuration; easing.type: Easing.OutCubic } }

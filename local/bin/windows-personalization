@@ -194,13 +194,17 @@ def copy_icon(slug: str, key: str, source: str, size: int) -> str:
         except (TypeError, ValueError):
             continue
     source_frame = f"{path}[{max(frames)[1]}]" if len(frames) > 1 else str(path)
+    # Keep several physical pixels for every displayed pixel. Waybar/GTK can
+    # then downsample cleanly (and HiDPI displays stay sharp) instead of being
+    # handed a permanently lossy 25x25 source image.
+    render_size = max(256, size * 4)
     fd, temporary_name = tempfile.mkstemp(prefix=f"{key}.", suffix=".png", dir=target_dir)
     os.close(fd)
     try:
         converted = subprocess.run([
             "magick", source_frame, "-background", "none", "-alpha", "on",
-            "-resize", f"{size}x{size}", "-gravity", "center",
-            "-extent", f"{size}x{size}", temporary_name,
+            "-resize", f"{render_size}x{render_size}", "-gravity", "center",
+            "-extent", f"{render_size}x{render_size}", temporary_name,
         ], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
         if converted.returncode != 0:
             raise ValueError(f"Could not prepare {key} icon: {converted.stderr.strip()}")
