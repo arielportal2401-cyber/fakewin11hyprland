@@ -111,6 +111,12 @@ def validate(raw: dict) -> dict:
         raise ValueError("Taskbar position must be bottom, top, left, or right")
     if bar["alignment"] not in {"center", "left"}:
         raise ValueError("Taskbar alignment must be center or left")
+    shown = bar["show"]
+    for key in DEFAULT["taskbar"]["show"]:
+        value = shown.get(key, True)
+        shown[key] = value if isinstance(value, bool) else str(value).casefold() in {"1", "true", "yes", "on"}
+    if not any(shown.values()):
+        shown["start"] = True
     bar["size"] = max(34, min(96, int(bar["size"])))
     bar["margin"] = max(0, min(48, int(bar["margin"])))
     look["opacity"] = max(0.05, min(1.0, float(look["opacity"])))

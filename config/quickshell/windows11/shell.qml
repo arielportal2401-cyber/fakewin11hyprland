@@ -81,6 +81,23 @@ import Quickshell
           root.queuePersonalization(["stage", changed.slug, key, String(value)])
       }
 
+      function visibleTaskbarButtonCount() {
+          const shown = root.activePreset.taskbar ? root.activePreset.taskbar.show : null
+          if (!shown) return 0
+          let count = 0
+          for (const key in shown) {
+              if (shown[key]) count++
+          }
+          return count
+      }
+
+      function toggleTaskbarButton(key) {
+          const shown = root.activePreset.taskbar ? root.activePreset.taskbar.show : null
+          if (!shown) return
+          if (shown[key] && root.visibleTaskbarButtonCount() <= 1) return
+          root.changePersonalization("taskbar.show." + key, !shown[key])
+      }
+
       function queuePersonalization(arguments) {
           const queued = root.personalizationCommands.slice()
           queued.push([Quickshell.env("HOME") + "/.local/bin/windows-personalization"].concat(arguments))
@@ -1655,6 +1672,7 @@ import Quickshell
                           Column {
                               width: (parent.width - 14) / 2; spacing: 7
                               Text { text: "Taskbar buttons"; color: "white"; font.pixelSize: 16; font.bold: true; font.family: root.uiFont }
+                              Text { text: "At least one button stays enabled so the shell remains recoverable."; color: "#9aa4af"; font.pixelSize: 10; wrapMode: Text.WordWrap; width: parent.width }
                               Repeater {
                                   model: [
                                       { label: "Start", key: "start" }, { label: "Search", key: "search" }, { label: "Task View", key: "task_view" },
@@ -1669,7 +1687,7 @@ import Quickshell
                                       width: parent.width; height: 34; radius: 6; color: toggleMouse.containsMouse ? "#293441" : "transparent"
                                       Text { anchors.left: parent.left; anchors.leftMargin: 8; anchors.verticalCenter: parent.verticalCenter; text: modelData.label; color: "white"; font.pixelSize: 12 }
                                       Rectangle { anchors.right: parent.right; anchors.rightMargin: 8; anchors.verticalCenter: parent.verticalCenter; width: 38; height: 20; radius: 10; color: parent.enabledValue ? "#60cdff" : "#4b5665"; Rectangle { width: 14; height: 14; radius: 7; color: "white"; anchors.verticalCenter: parent.verticalCenter; x: parent.parent.enabledValue ? 21 : 3; Behavior on x { NumberAnimation { duration: 140 } } } }
-                                      MouseArea { id: toggleMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.changePersonalization("taskbar.show." + modelData.key, !parent.enabledValue) }
+                                      MouseArea { id: toggleMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.toggleTaskbarButton(modelData.key) }
                                   }
                               }
                               Text { text: "Motion"; color: "white"; font.pixelSize: 16; font.bold: true; font.family: root.uiFont }
