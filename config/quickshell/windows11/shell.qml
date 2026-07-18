@@ -1367,12 +1367,31 @@ import Quickshell
                               }
                               Rectangle {
                                   width: parent.width; height: 46; radius: 8; color: "#202a3542"
-                                  TextInput { id: presetName; anchors.left: parent.left; anchors.right: cloneButton.left; anchors.margins: 12; anchors.verticalCenter: parent.verticalCenter; text: "My Windows"; color: "white"; selectByMouse: true; font.pixelSize: 12 }
+                                  TextInput { id: presetName; anchors.left: parent.left; anchors.right: renameButton.left; anchors.margins: 12; anchors.verticalCenter: parent.verticalCenter; text: root.activePreset.name || "My Windows"; color: "white"; selectByMouse: true; font.pixelSize: 12 }
                                   Rectangle {
-                                      id: cloneButton; anchors.right: parent.right; anchors.margins: 5; anchors.verticalCenter: parent.verticalCenter
-                                      width: 86; height: 36; radius: 6; color: cloneMouse.containsMouse ? "#67b9e8" : "#3784ad"
-                                      Text { anchors.centerIn: parent; text: "Save new"; color: "white"; font.pixelSize: 11 }
+                                      id: renameButton; anchors.right: cloneButton.left; anchors.rightMargin: 5; anchors.verticalCenter: parent.verticalCenter
+                                      width: 70; height: 36; radius: 6
+                                      opacity: root.activePreset.slug === "windows-11" ? 0.38 : 1
+                                      color: renameMouse.containsMouse && root.activePreset.slug !== "windows-11" ? "#526171" : "#35414e"
+                                      Text { anchors.centerIn: parent; text: "Rename"; color: "white"; font.pixelSize: 11 }
+                                      MouseArea { id: renameMouse; anchors.fill: parent; hoverEnabled: true; enabled: root.activePreset.slug !== "windows-11"; onClicked: Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/windows-personalization", "rename", root.activePreset.slug, presetName.text]) }
+                                  }
+                                  Rectangle {
+                                      id: cloneButton; anchors.right: deleteButton.left; anchors.rightMargin: 5; anchors.verticalCenter: parent.verticalCenter
+                                      width: 72; height: 36; radius: 6; color: cloneMouse.containsMouse ? "#67b9e8" : "#3784ad"
+                                      Text { anchors.centerIn: parent; text: "Save copy"; color: "white"; font.pixelSize: 10 }
                                       MouseArea { id: cloneMouse; anchors.fill: parent; hoverEnabled: true; onClicked: Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/windows-personalization", "clone", presetName.text]) }
+                                  }
+                                  Rectangle {
+                                      id: deleteButton; anchors.right: parent.right; anchors.rightMargin: 5; anchors.verticalCenter: parent.verticalCenter
+                                      width: 58; height: 36; radius: 6
+                                      opacity: root.activePreset.slug === "windows-11" ? 0.38 : 1
+                                      color: deleteMouse.containsMouse && root.activePreset.slug !== "windows-11" ? "#8f3f48" : "#56343b"
+                                      Text { anchors.centerIn: parent; text: "Delete"; color: "white"; font.pixelSize: 10 }
+                                      MouseArea {
+                                          id: deleteMouse; anchors.fill: parent; hoverEnabled: true; enabled: root.activePreset.slug !== "windows-11"
+                                          onClicked: Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/windows-personalization", "delete", root.activePreset.slug])
+                                      }
                                   }
                               }
 

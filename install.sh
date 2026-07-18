@@ -109,7 +109,7 @@ dependencies=(
     hyprctl quickshell waybar rofi rg jq python3 yad awww grim slurp wl-copy
     hyprlock thunar kitty fastfetch iwctl bluetoothctl pavucontrol playerctl
     brightnessctl satty notify-send magick wpctl pactl swayosd-client cliphist
-    xdg-desktop-portal xdg-desktop-portal-hyprland xdg-user-dir pipewire flatpak
+    xdg-desktop-portal xdg-desktop-portal-hyprland xdg-user-dir xdg-mime pipewire flatpak
     starship eza bat zoxide btop cava pipes-rs chafa
 )
 
@@ -174,6 +174,7 @@ native_package_for() {
         *:hyprctl) printf 'hyprland\n' ;;
         *:swayosd-client) printf 'swayosd\n' ;;
         *:xdg-user-dir) printf 'xdg-user-dirs\n' ;;
+        *:xdg-mime) printf 'xdg-utils\n' ;;
         pacman:python3) printf 'python\n' ;;
         pacman:rofi) printf 'rofi-wayland\n' ;;
         pacman:wl-copy) printf 'wl-clipboard\n' ;;
@@ -223,6 +224,7 @@ nix_package_for() {
         hyprctl) printf 'hyprland\n' ;;
         swayosd-client) printf 'swayosd\n' ;;
         xdg-user-dir) printf 'xdg-user-dirs\n' ;;
+        xdg-mime) printf 'xdg-utils\n' ;;
         rofi) printf 'rofi-wayland\n' ;;
         rg) printf 'ripgrep\n' ;;
         wl-copy) printf 'wl-clipboard\n' ;;
@@ -470,6 +472,15 @@ fi
 
 command -v update-desktop-database >/dev/null 2>&1 && \
     update-desktop-database "$HOME/.local/share/applications" >/dev/null 2>&1 || true
+
+# Keep an existing file-manager choice. Fresh systems get the bundled Explorer
+# equivalent so folders opened by desktop portals do not fall back arbitrarily.
+if command -v xdg-mime >/dev/null 2>&1; then
+    folder_handler="$(xdg-mime query default inode/directory 2>/dev/null || true)"
+    if [[ -z "$folder_handler" || "$folder_handler" == "kitty-open.desktop" ]]; then
+        xdg-mime default thunar.desktop inode/directory >/dev/null 2>&1 || true
+    fi
+fi
 
 cp -- "$HOME/.config/hypr/profiles/windows11/colors.conf" "$HOME/.config/hypr/colors.conf"
 cp -- "$HOME/.config/hypr/profiles/windows11/config/"*.conf "$HOME/.config/hypr/config/"

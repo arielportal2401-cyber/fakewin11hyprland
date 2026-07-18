@@ -15,7 +15,10 @@ start_shell() {
     pkill -f "$HOME/.local/bin/windows-taskbar-watch" 2>/dev/null || true
     pkill -f "$HOME/.local/bin/windows-layout-watch" 2>/dev/null || true
     pkill -f "$HOME/.config/hypr/scripts/quickshell/Shell.qml" 2>/dev/null || true
-    WINDOWS_TASKBAR=waybar quickshell --no-duplicate --daemonize --path "$WINDOWS_QML" >/dev/null 2>&1
+    # Let Qt ask the desktop portal for its configured file/color dialogs while
+    # retaining the user's normal Qt theme.
+    WINDOWS_TASKBAR=waybar QT_USE_PORTAL=1 \
+        quickshell --no-duplicate --daemonize --path "$WINDOWS_QML" >/dev/null 2>&1
     pkill -f "$HOME/.config/waybar/windows11/config.jsonc" 2>/dev/null || true
     hyprctl dispatch exec -- "$HOME/.local/bin/windows-waybar" >/dev/null
     hyprctl dispatch exec -- "$HOME/.local/bin/windows-taskbar-watch" >/dev/null
