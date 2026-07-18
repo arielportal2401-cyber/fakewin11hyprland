@@ -266,14 +266,14 @@ import Quickshell
           ListElement { name: "Task View"; icon: "@HOME@/.config/quickshell/windows11/assets/taskview.svg"; command: "rofi -show window"; match: ""; action: "launch" }
           ListElement { name: "File Explorer"; icon: "@HOME@/.config/quickshell/windows11/assets/explorer.svg"; command: "thunar"; match: "thunar"; action: "launch" }
           ListElement { name: "Browser"; icon: "@HOME@/.config/quickshell/windows11/assets/browser.svg"; command: "zen-browser"; match: "zen"; action: "launch" }
-          ListElement { name: "Discord"; icon: "com.discordapp.Discord"; command: "discord"; match: "discord"; action: "launch" }
+          ListElement { name: "Discord"; icon: "com.discordapp.Discord"; command: "@HOME@/.local/bin/discord-wayland"; match: "discord"; action: "launch" }
       }
 
       ListModel {
           id: recommendedModel
           ListElement { name: "File Explorer"; detail: "Recently used"; icon: "org.xfce.thunar"; command: "thunar" }
           ListElement { name: "Zen Browser"; detail: "Recently used"; icon: "@HOME@/.config/quickshell/windows11/assets/zen-waybar.png"; command: "zen-browser" }
-          ListElement { name: "Discord"; detail: "Recently used"; icon: "com.discordapp.Discord"; command: "discord"; match: "discord" }
+          ListElement { name: "Discord"; detail: "Recently used"; icon: "com.discordapp.Discord"; command: "@HOME@/.local/bin/discord-wayland"; match: "discord" }
           ListElement { name: "Prism Launcher"; detail: "Recently added"; icon: "org.prismlauncher.PrismLauncher"; command: "prismlauncher" }
           ListElement { name: "Volume Control"; detail: "Recently used"; icon: "org.pulseaudio.pavucontrol"; command: "pavucontrol" }
           ListElement { name: "OpenRGB"; detail: "Recently used"; icon: "org.openrgb.OpenRGB"; command: "openrgb" }
@@ -284,7 +284,7 @@ import Quickshell
 
           ListElement { name: "Zen Browser"; icon: "@HOME@/.config/quickshell/windows11/assets/zen-waybar.png"; command: "zen-browser" }
           ListElement { name: "Firefox"; icon: "firefox"; command: "firefox --name firefox" }
-          ListElement { name: "Discord"; icon: "com.discordapp.Discord"; command: "discord"; match: "discord" }
+          ListElement { name: "Discord"; icon: "com.discordapp.Discord"; command: "@HOME@/.local/bin/discord-wayland"; match: "discord" }
           ListElement { name: "Prism Launcher"; icon: "org.prismlauncher.PrismLauncher"; command: "prismlauncher" }
           ListElement { name: "Sober"; icon: "org.vinegarhq.Sober"; command: "@HOME@/.local/bin/windows-flatpak run org.vinegarhq.Sober" }
           ListElement { name: "File Explorer"; icon: "org.xfce.thunar"; command: "thunar" }

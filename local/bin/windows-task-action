@@ -7,7 +7,7 @@ match="${2:-}"
 shift "$(( $# >= 2 ? 2 : $# ))"
 
 if [[ -z "$action" || -z "$match" || $# -eq 0 ]]; then
-    echo "usage: windows-task-action {toggle|new} CLASS_REGEX COMMAND [ARG ...]" >&2
+    echo "usage: windows-task-action {activate|toggle|new} CLASS_REGEX COMMAND [ARG ...]" >&2
     exit 2
 fi
 
@@ -44,7 +44,7 @@ if [[ "$action" == "new" ]]; then
     exit 0
 fi
 
-if [[ "$action" != "toggle" ]]; then
+if [[ "$action" != "toggle" && "$action" != "activate" ]]; then
     echo "unknown action: $action" >&2
     exit 2
 fi
@@ -60,7 +60,7 @@ state_dir="$HOME/.local/state/windows-taskbar/minimized"
 state_key="$(printf '%s' "$match" | sha256sum | cut -d' ' -f1)"
 state_file="$state_dir/$state_key"
 
-if [[ "$active_matches" == "true" && -n "$active" ]]; then
+if [[ "$action" == "toggle" && "$active_matches" == "true" && -n "$active" ]]; then
     mkdir -p "$state_dir"
     printf '%s\n' "$active" >"$state_file"
     hyprctl dispatch movetoworkspacesilent "special:minimized,address:$active" >/dev/null
