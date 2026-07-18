@@ -39,7 +39,7 @@ DEFAULT = {
         "show": {
             "start": True, "search": True, "task_view": True, "workspaces": True,
             "weather": True, "pinned_apps": True, "running_apps": True,
-            "tray": True, "network": True, "volume": True, "clock": True,
+            "tray": True, "quick_settings": True, "clock": True,
             "notifications": True, "show_desktop": True,
         },
     },
@@ -60,8 +60,8 @@ DEFAULT = {
 MODULES = {
     "start": "custom/start", "search": "custom/search", "task_view": "custom/taskview",
     "workspaces": "hyprland/workspaces", "weather": "custom/weather",
-    "running_apps": "wlr/taskbar", "tray": "custom/chevron", "network": "custom/wifi",
-    "volume": "custom/volume", "clock": "clock", "notifications": "custom/alert",
+    "running_apps": "wlr/taskbar", "tray": "custom/chevron",
+    "quick_settings": "custom/quicksettings", "clock": "clock", "notifications": "custom/alert",
     "show_desktop": "custom/showdesktop",
 }
 
@@ -105,6 +105,7 @@ def merge(base, value):
 
 
 def validate(raw: dict) -> dict:
+    raw_show = raw.get("taskbar", {}).get("show", {}) if isinstance(raw, dict) else {}
     data = merge(DEFAULT, raw)
     bar, look, motion = data["taskbar"], data["appearance"], data["motion"]
     if bar["position"] not in {"bottom", "top", "left", "right"}:
@@ -112,6 +113,10 @@ def validate(raw: dict) -> dict:
     if bar["alignment"] not in {"center", "left"}:
         raise ValueError("Taskbar alignment must be center or left")
     shown = bar["show"]
+    if "quick_settings" not in raw_show and ("network" in raw_show or "volume" in raw_show):
+        shown["quick_settings"] = bool(raw_show.get("network") or raw_show.get("volume"))
+    shown.pop("network", None)
+    shown.pop("volume", None)
     for key in DEFAULT["taskbar"]["show"]:
         value = shown.get(key, True)
         shown[key] = value if isinstance(value, bool) else str(value).casefold() in {"1", "true", "yes", "on"}
@@ -255,7 +260,7 @@ def generate_waybar(data: dict) -> None:
         if shown[key]: core.append(MODULES[key])
     if shown["pinned_apps"]: core.extend(pins)
     if shown["running_apps"]: core.append(MODULES["running_apps"])
-    right = [MODULES[key] for key in ("tray", "network", "volume", "clock", "notifications", "show_desktop") if shown[key]]
+    right = [MODULES[key] for key in ("tray", "quick_settings", "clock", "notifications", "show_desktop") if shown[key]]
     if bar["alignment"] == "left":
         left.extend(core); core = []
     config["modules-left"], config["modules-center"], config["modules-right"] = left, core, right
@@ -288,7 +293,7 @@ def generate_waybar(data: dict) -> None:
     shell_modules = [
         "#custom-weather", "#workspaces", "#workspaces button", "#custom-start",
         "#custom-search", "#custom-taskview", "#taskbar button", "#custom-chevron",
-        "#custom-wifi", "#custom-volume", "#clock", "#custom-alert", "#custom-showdesktop",
+        "#custom-quicksettings", "#clock", "#custom-alert", "#custom-showdesktop",
         *pin_selectors,
     ]
     if horizontal:
@@ -428,8 +433,8 @@ def gui() -> int:
         ("Show Start", "CHK", check(shown["start"])), ("Show Search", "CHK", check(shown["search"])),
         ("Show Task View", "CHK", check(shown["task_view"])), ("Show workspaces", "CHK", check(shown["workspaces"])),
         ("Show weather", "CHK", check(shown["weather"])), ("Show pinned apps", "CHK", check(shown["pinned_apps"])),
-        ("Show running apps", "CHK", check(shown["running_apps"])), ("Show tray", "CHK", check(shown["tray"])),
-        ("Show network", "CHK", check(shown["network"])), ("Show volume", "CHK", check(shown["volume"])),
+        ("Show running apps", "CHK", check(shown["running_apps"])), ("Show background apps", "CHK", check(shown["tray"])),
+        ("Show Quick Settings", "CHK", check(shown["quick_settings"])),
         ("Show clock", "CHK", check(shown["clock"])), ("Show notifications", "CHK", check(shown["notifications"])),
         ("Show Desktop corner", "CHK", check(shown["show_desktop"])),
         ("Background", "CLR", look["background"]), ("Opacity", "NUM", f"{look['opacity']}!0.05!1!0.01"),
@@ -478,7 +483,7 @@ def gui() -> int:
     slug = chosen
     truth = lambda key: value[key].casefold() == "true"
     bar.update(position=value["Taskbar edge"], alignment=value["App alignment"], size=int(float(value["Taskbar size"])), margin=int(float(value["Screen margin"])), floating=truth("Floating taskbar"))
-    labels = {"start":"Show Start", "search":"Show Search", "task_view":"Show Task View", "workspaces":"Show workspaces", "weather":"Show weather", "pinned_apps":"Show pinned apps", "running_apps":"Show running apps", "tray":"Show tray", "network":"Show network", "volume":"Show volume", "clock":"Show clock", "notifications":"Show notifications", "show_desktop":"Show Desktop corner"}
+    labels = {"start":"Show Start", "search":"Show Search", "task_view":"Show Task View", "workspaces":"Show workspaces", "weather":"Show weather", "pinned_apps":"Show pinned apps", "running_apps":"Show running apps", "tray":"Show background apps", "quick_settings":"Show Quick Settings", "clock":"Show clock", "notifications":"Show notifications", "show_desktop":"Show Desktop corner"}
     for key, label in labels.items(): shown[key] = truth(label)
     look.update(background=value["Background"][:7], opacity=float(value["Opacity"]), accent=value["Accent"][:7], radius=int(float(value["Corner radius"])), icon_size=int(float(value["Icon size"])))
     data["icons"].update(start=value["Custom Start icon"], search=value["Custom Search icon"], task_view=value["Custom Task View icon"])

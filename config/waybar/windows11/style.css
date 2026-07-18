@@ -127,8 +127,7 @@ window#waybar .module,
 }
 
 #custom-chevron,
-#custom-wifi,
-#custom-volume {
+#custom-quicksettings {
   min-width: 23px;
   min-height: 40px;
   margin: 3px 0;
@@ -143,17 +142,14 @@ window#waybar .module,
   border-radius: 5px 0 0 5px;
   background-image: url("@HOME@/.config/quickshell/windows11/assets/chevron-waybar.png");
 }
-#custom-wifi {
-  background-image: url("@HOME@/.config/quickshell/windows11/assets/wifi-waybar.png");
-}
-#custom-volume {
+#custom-quicksettings {
+  min-width: 42px;
   border-radius: 0 5px 5px 0;
-  background-image: url("@HOME@/.config/quickshell/windows11/assets/volume-waybar.png");
+  background-image: url("@HOME@/.config/quickshell/windows11/assets/quicksettings-waybar.png");
 }
 
 #custom-chevron:hover,
-#custom-wifi:hover,
-#custom-volume:hover,
+#custom-quicksettings:hover,
 #clock:hover,
 #custom-alert:hover {
   background-color: rgba(255, 255, 255, 0.13);

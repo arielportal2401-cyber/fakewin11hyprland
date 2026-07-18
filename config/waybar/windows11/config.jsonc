@@ -21,8 +21,7 @@
   ],
   "modules-right": [
     "custom/chevron",
-    "custom/wifi",
-    "custom/volume",
+    "custom/quicksettings",
     "clock",
     "custom/alert",
     "custom/showdesktop"
@@ -81,12 +80,7 @@
     "tooltip": false,
     "on-click": "@HOME@/.local/bin/windows-tray-menu"
   },
-  "custom/wifi": {
-    "format": " ",
-    "tooltip": false,
-    "on-click": "@HOME@/.local/bin/windows-quick-settings"
-  },
-  "custom/volume": {
+  "custom/quicksettings": {
     "format": " ",
     "tooltip": false,
     "on-click": "@HOME@/.local/bin/windows-quick-settings"

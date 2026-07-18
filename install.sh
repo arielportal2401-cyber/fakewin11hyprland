@@ -499,6 +499,7 @@ for required_file in \
     "$HOME/.local/bin/windows-shell" \
     "$HOME/.local/bin/windows-command-exec" \
     "$HOME/.local/bin/windows-personalization" \
+    "$HOME/.local/bin/windows-minimized-restore" \
     "$HOME/.local/bin/windows-fit-workarea" \
     "$HOME/.local/bin/windows-flatpak" \
     "$HOME/.local/bin/windows-workspace-cycle" \

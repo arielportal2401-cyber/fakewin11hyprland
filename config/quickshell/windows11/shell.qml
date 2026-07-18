@@ -1,5 +1,7 @@
 import Quickshell
   import Quickshell.Io
+  import Quickshell.Services.Notifications
+  import Quickshell.Services.SystemTray
   import Quickshell.Wayland
   import QtQuick
   import QtQuick.Controls
@@ -38,6 +40,7 @@ import Quickshell
       property var runningClasses: []
       property string activeClass: ""
       property string activeAddress: ""
+      property var minimizedApps: []
       property bool wifiEnabled: false
       property bool bluetoothEnabled: false
       property real outputVolume: 0
@@ -50,6 +53,36 @@ import Quickshell
       property int motionDuration: 280
       property int motionDistance: 36
       readonly property int panelGap: taskbarThickness + 8
+
+      ListModel { id: notificationModel }
+
+      NotificationServer {
+          id: notificationServer
+          keepOnReload: true
+          persistenceSupported: true
+          bodySupported: true
+          bodyMarkupSupported: false
+          actionsSupported: false
+          imageSupported: false
+
+          onNotification: notification => {
+              notification.tracked = true
+              notificationModel.insert(0, {
+                  notificationId: notification.id,
+                  appName: notification.appName || "System",
+                  appIcon: notification.appIcon || "application-x-executable",
+                  summary: notification.summary || "Notification",
+                  body: notification.body || "",
+                  receivedAt: Qt.formatDateTime(new Date(), "HH:mm")
+              })
+              if (notificationModel.count > 50)
+                  notificationModel.remove(50, notificationModel.count - 50)
+          }
+      }
+
+      function clearNotifications() {
+          notificationModel.clear()
+      }
 
       function panelOffsetX(open) {
           if (open || !directionalMotion || !animateShellPanels) return 0
@@ -506,6 +539,7 @@ import Quickshell
                       root.runningClasses = state.clients
                       root.activeClass = state.active
                       root.activeAddress = state.address || ""
+                      root.minimizedApps = state.minimized || []
                       if (root.quickSettingsOpen && previousAddress.length > 0
                               && root.activeAddress !== previousAddress)
                           root.closeRightMenu()
@@ -722,6 +756,14 @@ import Quickshell
               root.notificationsOpen = !root.notificationsOpen
               root.startOpen = false; root.quickSettingsOpen = false; root.calendarOpen = false
               root.powerOpen = false; root.trayOpen = false
+          }
+
+          function notificationCount(): int {
+              return notificationModel.count
+          }
+
+          function backgroundAppCount(): int {
+              return SystemTray.items.values.length + root.minimizedApps.length
           }
 
           function togglePower(): void {
@@ -1677,8 +1719,8 @@ import Quickshell
                                   model: [
                                       { label: "Start", key: "start" }, { label: "Search", key: "search" }, { label: "Task View", key: "task_view" },
                                       { label: "Workspaces", key: "workspaces" }, { label: "Weather", key: "weather" }, { label: "Pinned apps", key: "pinned_apps" },
-                                      { label: "Running apps", key: "running_apps" }, { label: "System tray", key: "tray" }, { label: "Network", key: "network" },
-                                      { label: "Volume", key: "volume" }, { label: "Clock", key: "clock" }, { label: "Notifications", key: "notifications" },
+                                      { label: "Running apps", key: "running_apps" }, { label: "Background apps", key: "tray" }, { label: "Quick settings", key: "quick_settings" },
+                                      { label: "Clock", key: "clock" }, { label: "Notifications", key: "notifications" },
                                       { label: "Show Desktop", key: "show_desktop" }
                                   ]
                                   delegate: Rectangle {
@@ -1835,12 +1877,14 @@ import Quickshell
           WlrLayershell.namespace: "windows-notifications"
           anchors { left: root.taskbarEdge === "left"; right: root.taskbarEdge !== "left"; top: root.taskbarEdge === "top"; bottom: root.taskbarEdge !== "top" }
           margins { left: root.taskbarEdge === "left" ? root.panelGap : 0; right: root.taskbarEdge === "right" ? root.panelGap : 10; top: root.taskbarEdge === "top" ? root.panelGap : 0; bottom: root.taskbarEdge === "bottom" ? root.panelGap : 0 }
-          implicitWidth: 370; implicitHeight: 310
+          implicitWidth: 390; implicitHeight: 480
           exclusiveZone: 0; color: "transparent"
           Rectangle {
               anchors.fill: parent; radius: 11
               color: "#c7202631"; border.width: 1; border.color: "#38ffffff"
-              transformOrigin: Item.BottomRight
+              transformOrigin: root.taskbarEdge === "left" ? Item.BottomLeft
+                  : root.taskbarEdge === "top" ? Item.TopRight
+                  : Item.BottomRight
               scale: root.notificationsOpen ? 1 : 0.88
               opacity: root.notificationsOpen ? 1 : 0
               transform: Translate {
@@ -1850,13 +1894,57 @@ import Quickshell
               }
               Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutBack } }
               Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
-              Text { anchors.left: parent.left; anchors.leftMargin: 22; anchors.top: parent.top; anchors.topMargin: 20; text: "Notifications"; color: "white"; font.family: root.uiFont; font.pixelSize: 18; font.bold: true }
+              Text { anchors.left: parent.left; anchors.leftMargin: 22; anchors.top: parent.top; anchors.topMargin: 20; text: "Notifications  " + notificationModel.count; color: "white"; font.family: root.uiFont; font.pixelSize: 18; font.bold: true }
+              Text {
+                  visible: notificationModel.count > 0
+                  anchors.right: parent.right; anchors.rightMargin: 20; anchors.top: parent.top; anchors.topMargin: 22
+                  text: "Clear all"; color: clearNotificationsMouse.containsMouse ? "#ffffff" : "#9fcdeb"; font.family: root.uiFont; font.pixelSize: 11
+                  MouseArea { id: clearNotificationsMouse; anchors.fill: parent; anchors.margins: -8; hoverEnabled: true; onClicked: root.clearNotifications() }
+              }
               Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.topMargin: 58; height: 1; color: "#24ffffff" }
               Column {
+                  visible: notificationModel.count === 0
                   anchors.centerIn: parent; anchors.verticalCenterOffset: -8; spacing: 8
                   Text { anchors.horizontalCenter: parent.horizontalCenter; text: "✓"; color: "#60cdff"; font.pixelSize: 30 }
                   Text { anchors.horizontalCenter: parent.horizontalCenter; text: "You're all caught up"; color: "white"; font.family: root.uiFont; font.pixelSize: 14 }
                   Text { anchors.horizontalCenter: parent.horizontalCenter; text: "No new notifications"; color: "#8fa1b5"; font.family: root.uiFont; font.pixelSize: 11 }
+              }
+              ListView {
+                  id: notificationList
+                  visible: notificationModel.count > 0
+                  anchors.left: parent.left; anchors.right: parent.right
+                  anchors.top: parent.top; anchors.topMargin: 68
+                  anchors.bottom: parent.bottom; anchors.bottomMargin: 78
+                  anchors.leftMargin: 12; anchors.rightMargin: 12
+                  model: notificationModel; spacing: 6; clip: true
+                  delegate: Rectangle {
+                      required property int index
+                      required property string appName
+                      required property string appIcon
+                      required property string summary
+                      required property string body
+                      required property string receivedAt
+                      width: notificationList.width; height: body.length > 0 ? 92 : 70; radius: 9
+                      color: notificationItemMouse.containsMouse ? "#34ffffff" : "#18ffffff"
+                      Behavior on color { ColorAnimation { duration: 100 } }
+                      Image {
+                          anchors.left: parent.left; anchors.leftMargin: 12; anchors.top: parent.top; anchors.topMargin: 12
+                          width: 28; height: 28; fillMode: Image.PreserveAspectFit
+                          source: appIcon.startsWith("/") ? "file://" + appIcon
+                              : appIcon.startsWith("file:") ? appIcon : "image://icon/" + appIcon
+                          onStatusChanged: { if (status === Image.Error) source = "image://icon/application-x-executable" }
+                      }
+                      Text { anchors.left: parent.left; anchors.leftMargin: 50; anchors.right: closeNotification.left; anchors.rightMargin: 8; anchors.top: parent.top; anchors.topMargin: 9; text: appName; color: "#aeb8c5"; font.family: root.uiFont; font.pixelSize: 10; elide: Text.ElideRight }
+                      Text { anchors.left: parent.left; anchors.leftMargin: 50; anchors.right: parent.right; anchors.rightMargin: 38; anchors.top: parent.top; anchors.topMargin: 27; text: summary; color: "white"; font.family: root.uiFont; font.pixelSize: 13; font.bold: true; elide: Text.ElideRight }
+                      Text { visible: body.length > 0; anchors.left: parent.left; anchors.leftMargin: 50; anchors.right: parent.right; anchors.rightMargin: 12; anchors.top: parent.top; anchors.topMargin: 50; text: body; textFormat: Text.PlainText; color: "#c8cdd4"; font.family: root.uiFont; font.pixelSize: 11; elide: Text.ElideRight; maximumLineCount: 2; wrapMode: Text.Wrap }
+                      Text { anchors.right: parent.right; anchors.rightMargin: 12; anchors.top: parent.top; anchors.topMargin: 10; text: receivedAt; color: "#84909e"; font.family: root.uiFont; font.pixelSize: 9 }
+                      Text {
+                          id: closeNotification; anchors.right: parent.right; anchors.rightMargin: 10; anchors.top: parent.top; anchors.topMargin: 28
+                          text: "×"; color: "#dbe1e8"; font.pixelSize: 18
+                          MouseArea { anchors.fill: parent; anchors.margins: -7; onClicked: notificationModel.remove(index) }
+                      }
+                      MouseArea { id: notificationItemMouse; anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.NoButton }
+                  }
               }
               Rectangle {
                   anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; anchors.margins: 16
@@ -1920,13 +2008,15 @@ import Quickshell
           }
       }
 
-      // Native system-controls flyout
+      // Status-notifier tray for apps that remain active in the background.
       PanelWindow {
+          id: trayPanel
           visible: root.trayOpen
           WlrLayershell.namespace: "windows-tray"
           anchors { left: root.taskbarEdge === "left"; right: root.taskbarEdge !== "left"; top: root.taskbarEdge === "top"; bottom: root.taskbarEdge !== "top" }
           margins { left: root.taskbarEdge === "left" ? root.panelGap : 0; right: root.taskbarEdge === "right" ? root.panelGap : 106; top: root.taskbarEdge === "top" ? root.panelGap : 0; bottom: root.taskbarEdge === "bottom" ? root.panelGap : 0 }
-          implicitWidth: 280; implicitHeight: 255
+          implicitWidth: 320
+          implicitHeight: Math.min(420, Math.max(132, 76 + (SystemTray.items.values.length + root.minimizedApps.length) * 58))
           exclusiveZone: 0; color: "transparent"
           Rectangle {
               anchors.fill: parent; radius: 11
@@ -1942,24 +2032,50 @@ import Quickshell
               }
               Behavior on scale { NumberAnimation { duration: 240; easing.type: Easing.OutBack } }
               Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-              Text { anchors.left: parent.left; anchors.leftMargin: 20; anchors.top: parent.top; anchors.topMargin: 18; text: "System controls"; color: "white"; font.family: root.uiFont; font.pixelSize: 17; font.bold: true }
-              Grid {
-                  anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.topMargin: 58; anchors.margins: 14; columns: 2; spacing: 8
-                  Repeater {
-                      model: [{ title: "Settings", glyph: "⚙", action: "settings" }, { title: "Volume", glyph: "◖))", action: "volume" }, { title: "Bluetooth", glyph: "ᛒ", action: "bluetooth" }, { title: "Network", glyph: "⌁", action: "wifi" }]
-                      delegate: Rectangle {
-                          required property var modelData
-                          width: 122; height: 78; radius: 8; color: trayMouse.containsMouse ? "#36ffffff" : "#18ffffff"
-                          Behavior on color { ColorAnimation { duration: 100 } }
-                          Text { anchors.horizontalCenter: parent.horizontalCenter; anchors.top: parent.top; anchors.topMargin: 12; text: modelData.glyph; color: "#60cdff"; font.pixelSize: 20 }
-                          Text { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: 10; text: modelData.title; color: "white"; font.family: root.uiFont; font.pixelSize: 11 }
-                          MouseArea {
-                              id: trayMouse; anchors.fill: parent; hoverEnabled: true
-                              onClicked: {
-                                  root.trayOpen = false; root.quickSettingsOpen = true
-                                  if (modelData.action === "settings") root.openSettingsPage("home")
-                                  else if (modelData.action === "bluetooth") root.openSettingsPage("bluetooth")
-                                  else if (modelData.action === "wifi") root.openSettingsPage("wifi")
+              Text { anchors.left: parent.left; anchors.leftMargin: 20; anchors.top: parent.top; anchors.topMargin: 18; text: "Background apps"; color: "white"; font.family: root.uiFont; font.pixelSize: 17; font.bold: true }
+              Text { anchors.right: parent.right; anchors.rightMargin: 20; anchors.top: parent.top; anchors.topMargin: 22; text: String(SystemTray.items.values.length + root.minimizedApps.length); color: "#8fa1b5"; font.family: root.uiFont; font.pixelSize: 11 }
+              Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.topMargin: 54; height: 1; color: "#24ffffff" }
+              Column {
+                  visible: SystemTray.items.values.length + root.minimizedApps.length === 0
+                  anchors.centerIn: parent; anchors.verticalCenterOffset: 8; spacing: 7
+                  Text { anchors.horizontalCenter: parent.horizontalCenter; text: "○"; color: "#60cdff"; font.pixelSize: 26 }
+                  Text { anchors.horizontalCenter: parent.horizontalCenter; text: "No background apps"; color: "#aeb8c5"; font.family: root.uiFont; font.pixelSize: 12 }
+              }
+              Flickable {
+                  id: trayList
+                  visible: SystemTray.items.values.length + root.minimizedApps.length > 0
+                  anchors.left: parent.left; anchors.right: parent.right
+                  anchors.top: parent.top; anchors.topMargin: 62
+                  anchors.bottom: parent.bottom; anchors.bottomMargin: 10
+                  anchors.leftMargin: 10; anchors.rightMargin: 10
+                  contentHeight: backgroundAppColumn.height; clip: true
+                  Column {
+                      id: backgroundAppColumn
+                      width: trayList.width; spacing: 4
+                      Repeater {
+                          model: root.minimizedApps
+                          delegate: Rectangle {
+                              required property var modelData
+                              width: backgroundAppColumn.width; height: 52; radius: 8
+                              color: minimizedAppMouse.containsMouse ? "#34ffffff" : "transparent"
+                              Behavior on color { ColorAnimation { duration: 100 } }
+                              Image { anchors.left: parent.left; anchors.leftMargin: 12; anchors.verticalCenter: parent.verticalCenter; width: 26; height: 26; source: "image://icon/" + modelData.icon; fillMode: Image.PreserveAspectFit; onStatusChanged: { if (status === Image.Error) source = "image://icon/application-x-executable" } }
+                              Text { anchors.left: parent.left; anchors.leftMargin: 50; anchors.right: parent.right; anchors.rightMargin: 12; anchors.verticalCenter: parent.verticalCenter; text: modelData.name; color: "white"; font.family: root.uiFont; font.pixelSize: 12; elide: Text.ElideRight }
+                              MouseArea { id: minimizedAppMouse; anchors.fill: parent; hoverEnabled: true; onClicked: { root.trayOpen = false; Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/windows-minimized-restore", modelData.address]) } }
+                          }
+                      }
+                      Repeater {
+                          model: SystemTray.items
+                          delegate: Rectangle {
+                              required property var modelData
+                              width: backgroundAppColumn.width; height: 52; radius: 8
+                              color: backgroundAppMouse.containsMouse ? "#34ffffff" : "transparent"
+                              Behavior on color { ColorAnimation { duration: 100 } }
+                              Image { anchors.left: parent.left; anchors.leftMargin: 12; anchors.verticalCenter: parent.verticalCenter; width: 26; height: 26; source: modelData.icon; fillMode: Image.PreserveAspectFit; onStatusChanged: { if (status === Image.Error) source = "image://icon/application-x-executable" } }
+                              Text { anchors.left: parent.left; anchors.leftMargin: 50; anchors.right: parent.right; anchors.rightMargin: 12; anchors.verticalCenter: parent.verticalCenter; text: modelData.title || modelData.tooltipTitle || modelData.id; color: "white"; font.family: root.uiFont; font.pixelSize: 12; elide: Text.ElideRight }
+                              MouseArea {
+                                  id: backgroundAppMouse; anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                  onClicked: mouse => { root.trayOpen = false; if (mouse.button === Qt.RightButton) modelData.secondaryActivate(); else modelData.activate() }
                               }
                           }
                       }

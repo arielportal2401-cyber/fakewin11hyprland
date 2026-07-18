@@ -141,7 +141,7 @@ The automatic installer provides:
 - repaired XDG Downloads, Pictures and Videos defaults for sandboxed file pickers
 - a translucent Kitty theme, Starship prompt, eza, bat, zoxide, btop, Cava,
   pipes-rs and Chafa
-- native animated calendar, notifications, power and system-control flyouts
+- native animated calendar, notifications, power and Quick Settings flyouts
 
 The Wi-Fi controls currently use iwd rather than NetworkManager. On a system
 where NetworkManager owns Wi-Fi, install iwd and switch backends deliberately;
@@ -173,7 +173,8 @@ From there an ordinary desktop user can:
 - center taskbar applications or align them to the leading edge;
 - resize the taskbar and change its background/accent colors;
 - show or hide Start, Search, Task View, workspaces, weather, pinned apps,
-  running apps, tray, network, volume, clock, notifications and Show Desktop;
+  running apps, background apps, Quick Settings, clock, notifications and
+  Show Desktop;
 - replace the Start, Search and Task View images with a normal file picker;
 - select a wallpaper;
 - enable taskbar-directed motion for shell panels, application windows and
@@ -182,6 +183,11 @@ From there an ordinary desktop user can:
 Bottom and top taskbars use vertical workspace motion. Left and right taskbars
 use horizontal motion. Every shell flyout enters away from the selected
 taskbar edge.
+
+Wi-Fi, Bluetooth and volume share one Quick Settings button. The taskbar
+chevron instead lists StatusNotifier applications and windows minimized by the
+shell, while the notification panel receives and keeps real desktop
+notifications until they are dismissed or cleared.
 
 Presets live in:
 
@@ -212,7 +218,6 @@ You do not need this section to install the rice.
 
 ## Known rough edges
 
-- The notification button is a small panel, not complete notification history.
 - Pinned app matching depends on the application's Wayland class.
 - The default app list contains personal choices; remove anything not installed.
 - Hyprland moves quickly. Arch and NixOS generally provide the least painful

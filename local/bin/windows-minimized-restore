@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+address="${1:-}"
+[[ -n "$address" ]] || { printf 'usage: windows-minimized-restore ADDRESS\n' >&2; exit 2; }
+
+current="$(hyprctl activeworkspace -j | jq -r '.id')"
+hyprctl dispatch movetoworkspacesilent "$current,address:$address" >/dev/null
+hyprctl dispatch focuswindow "address:$address" >/dev/null
