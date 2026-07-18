@@ -19,4 +19,19 @@ start_once xdg-desktop-portal-gtk "$libexec/xdg-desktop-portal-gtk"
 start_once xdg-desktop-portal-hyprland "$libexec/xdg-desktop-portal-hyprland"
 
 sleep 0.5
+
+# D-Bus may have activated the frontend before the compositor backend existed.
+# That leaves ScreenCast present but permanently advertising zero sources.
+if pgrep -u "$(id -u)" -f '(^|/)xdg-desktop-portal$' >/dev/null 2>&1; then
+    screencast_sources="$(busctl --user get-property \
+        org.freedesktop.portal.Desktop \
+        /org/freedesktop/portal/desktop \
+        org.freedesktop.portal.ScreenCast \
+        AvailableSourceTypes 2>/dev/null || true)"
+    if [[ -z "$screencast_sources" || "$screencast_sources" == "u 0" ]]; then
+        pkill -u "$(id -u)" -f '(^|.*/)xdg-desktop-portal$' 2>/dev/null || true
+        sleep 0.2
+    fi
+fi
+
 start_once xdg-desktop-portal "$libexec/xdg-desktop-portal"
