@@ -1597,9 +1597,9 @@ import Quickshell
                               Row {
                                   spacing: 8
                                   Text { anchors.verticalCenter: parent.verticalCenter; text: "Size"; color: "white"; width: 48 }
-                                  Rectangle { width: 34; height: 34; radius: 6; color: sizeDownMouse.containsMouse ? "#394552" : "#252e39"; Text { anchors.centerIn: parent; text: "−"; color: "white"; font.pixelSize: 18 } MouseArea { id: sizeDownMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.changePersonalization("taskbar.size", Math.max(34, root.activePreset.taskbar.size - 2)) } }
+                                  Rectangle { width: 34; height: 34; radius: 6; color: sizeDownMouse.containsMouse ? "#394552" : "#252e39"; Text { anchors.centerIn: parent; text: "−"; color: "white"; font.pixelSize: 18 } MouseArea { id: sizeDownMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.changePersonalization("taskbar.size", Math.max(34, root.activePreset.taskbar.size - 4)) } }
                                   Text { anchors.verticalCenter: parent.verticalCenter; text: root.activePreset.taskbar ? String(root.activePreset.taskbar.size) : "48"; color: "#60cdff"; width: 34; horizontalAlignment: Text.AlignHCenter }
-                                  Rectangle { width: 34; height: 34; radius: 6; color: sizeUpMouse.containsMouse ? "#394552" : "#252e39"; Text { anchors.centerIn: parent; text: "+"; color: "white"; font.pixelSize: 18 } MouseArea { id: sizeUpMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.changePersonalization("taskbar.size", Math.min(96, root.activePreset.taskbar.size + 2)) } }
+                                  Rectangle { width: 34; height: 34; radius: 6; color: sizeUpMouse.containsMouse ? "#394552" : "#252e39"; Text { anchors.centerIn: parent; text: "+"; color: "white"; font.pixelSize: 18 } MouseArea { id: sizeUpMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.changePersonalization("taskbar.size", Math.min(96, root.activePreset.taskbar.size + 4)) } }
                               }
                               Text { text: "Colors and material"; color: "white"; font.pixelSize: 14; font.bold: true }
                               Row { spacing: 8

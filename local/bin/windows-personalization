@@ -228,6 +228,13 @@ def generate_waybar(data: dict) -> None:
     for edge in ("top", "right", "bottom", "left"):
         config[f"margin-{edge}"] = bar["margin"] if bar["floating"] else 0
     config["wlr/taskbar"]["icon-size"] = data["appearance"]["icon_size"]
+    vertical = bar["position"] in {"left", "right"}
+    if vertical:
+        config["custom/weather"]["max-length"] = 2
+        config["clock"]["format"] = "{:%H\n%M}"
+    else:
+        config["custom/weather"].pop("max-length", None)
+        config["clock"]["format"] = "{:%H:%M\n%d.%m.%Y}"
     atomic_write(WAYBAR, json.dumps(config, indent=2) + "\n")
 
     look, icons = data["appearance"], data["icons"]
@@ -239,6 +246,28 @@ def generate_waybar(data: dict) -> None:
     }[bar["position"]]
     border_side = {"bottom": "top", "top": "bottom", "left": "right", "right": "left"}[bar["position"]]
     selectors = "#custom-start, #custom-search, #custom-taskview, #taskbar button"
+    pin_selectors = [f"#custom-{item.removeprefix('custom/')}" for item in pins]
+    shell_modules = [
+        "#custom-weather", "#workspaces", "#workspaces button", "#custom-start",
+        "#custom-search", "#custom-taskview", "#taskbar button", "#custom-chevron",
+        "#custom-wifi", "#custom-volume", "#clock", "#custom-alert", "#custom-showdesktop",
+        *pin_selectors,
+    ]
+    if horizontal:
+        dimension_overrides = f"""{', '.join(shell_modules)} {{
+  min-height: {max(24, bar['size'] - 8)}px;
+  margin-top: 2px;
+  margin-bottom: 2px;
+}}"""
+    else:
+        dimension_overrides = f"""{', '.join(shell_modules)} {{
+  min-width: {max(24, bar['size'] - 8)}px;
+  margin-left: 2px;
+  margin-right: 2px;
+  padding-left: 0;
+  padding-right: 0;
+}}
+#taskbar button image {{ margin-left: 0; }}"""
     overrides = f"""
 window#waybar.windows11-taskbar {{
   background-color: {rgba(look['background'], look['opacity'])};
@@ -251,6 +280,7 @@ window#waybar.windows11-taskbar {{
   min-width: {bar['size'] - 4 if not horizontal else 44}px;
   min-height: {bar['size'] - 4 if horizontal else 44}px;
 }}
+{dimension_overrides}
 #workspaces button.active {{ box-shadow: inset 0 -2px {look['accent']}; }}
 #taskbar button {{
   background-image: url("{running_indicator}");
