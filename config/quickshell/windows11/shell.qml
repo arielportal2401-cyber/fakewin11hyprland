@@ -2296,7 +2296,10 @@ import Quickshell
 
                           delegate: Rectangle {
                           required property int index
-                          readonly property var appData: appModel.get(index)
+                          required property string name
+                          required property string icon
+                          required property string exec
+                          required property string match
 
                           width: appList.width
                           height: 50
@@ -2312,9 +2315,9 @@ import Quickshell
                               anchors.verticalCenter: parent.verticalCenter
                               width: 30
                               height: 30
-                              source: appData.icon.startsWith("/")
-                                  ? "file://" + appData.icon
-                                  : "image://icon/" + appData.icon
+                              source: icon.startsWith("/")
+                                  ? "file://" + icon
+                                  : "image://icon/" + icon
                               sourceSize: Qt.size(64, 64)
                               fillMode: Image.PreserveAspectFit
                               onStatusChanged: {
@@ -2329,7 +2332,7 @@ import Quickshell
                               anchors.right: parent.right
                               anchors.rightMargin: 12
                               anchors.verticalCenter: parent.verticalCenter
-                              text: appData.name
+                              text: name
                               color: "white"
                               font.pixelSize: 15
                               font.family: root.uiFont
@@ -2344,9 +2347,9 @@ import Quickshell
                               onEntered: appList.currentIndex = index
                               onClicked: function(mouse) {
                                   if (mouse.button === Qt.RightButton)
-                                      root.showAppMenu(appData.name, appData.exec, appData.icon, appData.match)
+                                      root.showAppMenu(name, exec, icon, match)
                                   else
-                                      root.launchApp(appData.exec, appData.match)
+                                      root.launchApp(exec, match)
                               }
                           }
                           }

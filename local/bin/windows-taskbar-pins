@@ -159,7 +159,7 @@ def regenerate(pins):
 
 
 def restart_bar():
-    subprocess.run([str(HOME / ".local/bin/windows-shell"), "restart"], check=False)
+    subprocess.run([str(HOME / ".local/bin/windows-shell"), "refresh"], check=False)
 
 
 def find_icon(icon):

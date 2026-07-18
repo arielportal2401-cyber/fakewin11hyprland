@@ -4,7 +4,7 @@ set -u
 
 WINDOWS_QML="$HOME/.config/quickshell/windows11/shell.qml"
 
-start_shell() {
+prepare_windows_layout() {
     rm -f "$HOME/.local/state/windows11/taskbar-hidden"
     layout_mode="$(sed -n '1p' "$HOME/.local/state/windows11-rice/layout-mode" 2>/dev/null || true)"
     if [[ "$layout_mode" == "dwindle" ]]; then
@@ -12,18 +12,34 @@ start_shell() {
     else
         hyprctl keyword 'windowrule[spiral_split_focus]:enable false' >/dev/null 2>&1 || true
     fi
+}
+
+start_desktop_services() {
     pkill -f "$HOME/.local/bin/windows-taskbar-watch" 2>/dev/null || true
     pkill -f "$HOME/.local/bin/windows-layout-watch" 2>/dev/null || true
-    pkill -f "$HOME/.config/hypr/scripts/quickshell/Shell.qml" 2>/dev/null || true
-    # Let Qt ask the desktop portal for its configured file/color dialogs while
-    # retaining the user's normal Qt theme.
-    WINDOWS_TASKBAR=waybar QT_USE_PORTAL=1 \
-        quickshell --no-duplicate --daemonize --path "$WINDOWS_QML" >/dev/null 2>&1
     pkill -f "$HOME/.config/waybar/windows11/config.jsonc" 2>/dev/null || true
     hyprctl dispatch exec -- "$HOME/.local/bin/windows-waybar" >/dev/null
     hyprctl dispatch exec -- "$HOME/.local/bin/windows-fit-workarea" >/dev/null
     hyprctl dispatch exec -- "$HOME/.local/bin/windows-taskbar-watch" >/dev/null
     hyprctl dispatch exec -- "$HOME/.local/bin/windows-layout-watch" >/dev/null
+}
+
+start_shell() {
+    prepare_windows_layout
+    pkill -f "$HOME/.config/hypr/scripts/quickshell/Shell.qml" 2>/dev/null || true
+    # Let Qt ask the desktop portal for its configured color dialog while
+    # retaining the user's normal Qt theme.
+    WINDOWS_TASKBAR=waybar QT_USE_PORTAL=1 \
+        quickshell --no-duplicate --daemonize --path "$WINDOWS_QML" >/dev/null 2>&1
+    start_desktop_services
+}
+
+refresh_shell() {
+    # Personalization, weather, and pin changes only regenerate Waybar and
+    # compositor state. Keep Quickshell alive so Apply is not reported as a
+    # native crash by its supervisor.
+    prepare_windows_layout
+    start_desktop_services
 }
 
 stop_shell() {
@@ -35,13 +51,14 @@ stop_shell() {
 
 case "${1:-start}" in
     start) start_shell ;;
+    refresh) refresh_shell ;;
     stop) stop_shell ;;
     restart)
         stop_shell
         start_shell
         ;;
     *)
-        echo "usage: windows-shell {start|stop|restart}" >&2
+        echo "usage: windows-shell {start|refresh|stop|restart}" >&2
         exit 2
         ;;
 esac

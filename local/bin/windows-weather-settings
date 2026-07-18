@@ -12,4 +12,4 @@ IFS='|' read -r name lat lon _ <<<"$result"
 jq -n --arg name "$name" --argjson latitude "$lat" --argjson longitude "$lon" \
   '{name:$name,latitude:$latitude,longitude:$longitude,timezone:"Asia/Jerusalem"}' >"$file"
 rm -f "$HOME/.cache/windows11-weather.json"
-exec "$HOME/.local/bin/windows-shell" restart
+exec "$HOME/.local/bin/windows-shell" refresh

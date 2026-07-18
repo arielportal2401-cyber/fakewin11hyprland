@@ -389,7 +389,7 @@ def apply(slug: str, data: dict, restart: bool = True) -> None:
         if errors:
             raise RuntimeError(errors)
         if restart:
-            subprocess.Popen([str(HOME / ".local/bin/windows-shell"), "restart"], start_new_session=True)
+            subprocess.Popen([str(HOME / ".local/bin/windows-shell"), "refresh"], start_new_session=True)
     except Exception:
         restore_files(backup)
         subprocess.run(["hyprctl", "reload"], check=False)
