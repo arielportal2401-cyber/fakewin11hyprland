@@ -8,7 +8,7 @@ export PATH="/usr/local/bin:/usr/bin:$HOME/.nix-profile/bin"
 start_once() {
     local process="$1"
     local executable="$2"
-    if [[ -x "$executable" ]] && ! pgrep -u "$(id -u)" -x "$process" >/dev/null 2>&1; then
+    if [[ -x "$executable" ]] && ! pgrep -u "$(id -u)" -f "(^|/)$process$" >/dev/null 2>&1; then
         "$executable" >/dev/null 2>&1 &
     fi
 }
