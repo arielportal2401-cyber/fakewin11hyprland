@@ -160,6 +160,42 @@ where `xdg-document-portal` reports a FUSE mount error, run
 
 ---
 
+# NATIVE PERSONALIZATION AND PRESETS
+
+Open **Quick Settings → Settings → Personalization**. The editor is part of
+the Quickshell Windows Settings interface; it does not launch a separate theme
+application.
+
+From there an ordinary desktop user can:
+
+- save the current appearance as a named preset and switch presets;
+- move the taskbar to the bottom, top, left or right;
+- center taskbar applications or align them to the leading edge;
+- resize the taskbar and change its background/accent colors;
+- show or hide Start, Search, Task View, workspaces, weather, pinned apps,
+  running apps, tray, network, volume, clock, notifications and Show Desktop;
+- replace the Start, Search and Task View images with a normal file picker;
+- select a wallpaper;
+- enable taskbar-directed motion for shell panels, application windows and
+  workspace transitions.
+
+Bottom and top taskbars use vertical workspace motion. Left and right taskbars
+use horizontal motion. Every shell flyout enters away from the selected
+taskbar edge.
+
+Presets live in:
+
+```text
+~/.config/windows11/presets/<preset-name>/
+```
+
+The `windows-11` factory preset is protected. Editing it automatically creates
+`my-windows`, so the known-good layout always remains recoverable. Changes are
+written atomically, the previous generated files are retained for rollback,
+and a Hyprland configuration error restores the last working files.
+
+---
+
 # CUSTOMIZATION — ADVANCED
 
 You do not need this section to install the rice.

@@ -153,6 +153,9 @@ def regenerate(pins):
             ]
     generated.append(END)
     STYLE.write_text(css.rstrip() + "\n" + "\n".join(generated) + "\n")
+    personalizer = HOME / ".local/bin/windows-personalization"
+    if personalizer.is_file():
+        subprocess.run([str(personalizer), "sync"], check=False)
 
 
 def restart_bar():

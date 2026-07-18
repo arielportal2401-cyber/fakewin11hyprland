@@ -3,6 +3,7 @@ import Quickshell
   import Quickshell.Wayland
   import QtQuick
   import QtQuick.Controls
+  import QtQuick.Dialogs
 
   ShellRoot {
       id: root
@@ -15,6 +16,9 @@ import Quickshell
       property bool wifiDetailsOpen: false
       property bool bluetoothDetailsOpen: false
       property bool settingsDetailsOpen: false
+      property bool personalizationOpen: false
+      property var activePreset: ({})
+      property var availablePresets: []
       property bool calendarOpen: false
       property bool notificationsOpen: false
       property bool powerOpen: false
@@ -34,6 +38,59 @@ import Quickshell
       property real outputVolume: 0
       property bool outputMuted: false
       readonly property bool externalTaskbar: Quickshell.env("WINDOWS_TASKBAR") === "waybar"
+      property string taskbarEdge: "bottom"
+      property int taskbarThickness: 48
+      property bool directionalMotion: true
+      property bool animateShellPanels: true
+      property int motionDuration: 280
+      property int motionDistance: 36
+      readonly property int panelGap: taskbarThickness + 8
+
+      function panelOffsetX(open) {
+          if (open || !directionalMotion || !animateShellPanels) return 0
+          if (taskbarEdge === "left") return -motionDistance
+          if (taskbarEdge === "right") return motionDistance
+          return 0
+      }
+
+      function panelOffsetY(open) {
+          if (open || !directionalMotion || !animateShellPanels) return 0
+          if (taskbarEdge === "top") return -motionDistance
+          if (taskbarEdge === "bottom") return motionDistance
+          return 0
+      }
+
+      function changePersonalization(key, value) {
+          Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/windows-personalization", "set", key, String(value)])
+      }
+
+      function colorHex(color) {
+          function channel(value) { return Math.round(value * 255).toString(16).padStart(2, "0") }
+          return "#" + channel(color.r) + channel(color.g) + channel(color.b)
+      }
+
+      Process {
+          id: personalizationState
+          running: true
+          command: [Quickshell.env("HOME") + "/.local/bin/windows-personalization", "state"]
+          stdout: StdioCollector {
+              onStreamFinished: {
+                  try {
+                      const preset = JSON.parse(text)
+                      root.taskbarEdge = preset.taskbar.position
+                      root.taskbarThickness = preset.taskbar.size
+                      root.directionalMotion = preset.motion.follow_taskbar
+                      root.animateShellPanels = preset.motion.shell_panels
+                      root.motionDuration = preset.motion.duration_ms
+                      root.motionDistance = preset.motion.distance
+                      root.activePreset = preset
+                      root.availablePresets = preset.presets || []
+                  } catch (error) {
+                      console.log("Could not load personalization preset:", error)
+                  }
+              }
+          }
+      }
       readonly property string assetPath: "file://" + Quickshell.env("HOME") + "/.config/quickshell/windows11/assets/"
 
       ListModel { id: wifiModel }
@@ -735,15 +792,19 @@ import Quickshell
           visible: root.quickSettingsOpen
           WlrLayershell.namespace: "windows-quick-settings"
           anchors {
-              right: true
-              bottom: true
+              left: root.taskbarEdge === "left"
+              right: root.taskbarEdge !== "left"
+              top: root.taskbarEdge === "top"
+              bottom: root.taskbarEdge !== "top"
           }
           margins {
-              right: 10
-              bottom: 56
+              left: root.taskbarEdge === "left" ? root.panelGap : 0
+              right: root.taskbarEdge === "right" ? root.panelGap : 10
+              top: root.taskbarEdge === "top" ? root.panelGap : 0
+              bottom: root.taskbarEdge === "bottom" ? root.panelGap : 0
           }
-          implicitWidth: 360
-          implicitHeight: root.settingsDetailsOpen ? 520 : (root.wifiDetailsOpen || root.bluetoothDetailsOpen) ? 420 : 286
+          implicitWidth: root.personalizationOpen ? 760 : 360
+          implicitHeight: root.personalizationOpen ? 650 : root.settingsDetailsOpen ? 520 : (root.wifiDetailsOpen || root.bluetoothDetailsOpen) ? 420 : 286
           Behavior on implicitHeight {
               NumberAnimation { duration: 240; easing.type: Easing.OutCubic }
           }
@@ -760,6 +821,12 @@ import Quickshell
               transformOrigin: Item.BottomRight
               scale: root.quickSettingsOpen ? 1 : 0.88
               opacity: root.quickSettingsOpen ? 1 : 0
+              transform: Translate {
+                  x: root.panelOffsetX(root.quickSettingsOpen)
+                  y: root.panelOffsetY(root.quickSettingsOpen)
+                  Behavior on x { NumberAnimation { duration: root.motionDuration; easing.type: Easing.OutCubic } }
+                  Behavior on y { NumberAnimation { duration: root.motionDuration; easing.type: Easing.OutCubic } }
+              }
               Behavior on scale {
                   NumberAnimation { duration: 260; easing.type: Easing.OutBack }
               }
@@ -1174,7 +1241,7 @@ import Quickshell
 
               Item {
                   anchors.fill: parent
-                  visible: root.settingsDetailsOpen
+                  visible: root.settingsDetailsOpen && !root.personalizationOpen
                   z: 12
                   opacity: visible ? 1 : 0
                   scale: visible ? 1 : 0.94
@@ -1202,9 +1269,9 @@ import Quickshell
                                   { title: "Network & internet", detail: "Wi-Fi and connections", action: "wifi" },
                                   { title: "Bluetooth & devices", detail: "Pair and manage devices", action: "bluetooth" },
                                   { title: "System sound", detail: "Output, input and application volume", action: "sound" },
-                                  { title: "Taskbar", detail: "Task View and weather visibility", action: "taskbar" },
+                                  { title: "Taskbar", detail: "Position, buttons, icons and motion", action: "personalize" },
                                   { title: "Weather", detail: "Location and forecast source", action: "weather" },
-                                  { title: "Personalization", detail: "Switch desktop style and keybindings", action: "style" }
+                                  { title: "Personalization", detail: "Presets, colors, wallpaper and animation", action: "personalize" }
                               ]
                               delegate: Rectangle {
                                   required property var modelData
@@ -1219,10 +1286,192 @@ import Quickshell
                                           if (modelData.action === "wifi") root.openSettingsPage("wifi")
                                           else if (modelData.action === "bluetooth") root.openSettingsPage("bluetooth")
                                           else if (modelData.action === "sound") Quickshell.execDetached(["pavucontrol"])
-                                          else if (modelData.action === "taskbar") Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/windows-taskbar-options"])
+                                          else if (modelData.action === "personalize") root.personalizationOpen = true
                                           else if (modelData.action === "weather") Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/windows-weather-settings"])
                                           else if (modelData.action === "style") Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/hypr-config-switcher"])
                                       }
+                                  }
+                              }
+                          }
+                      }
+                  }
+              }
+
+              Item {
+                  anchors.fill: parent
+                  visible: root.personalizationOpen
+                  z: 20
+
+                  FileDialog {
+                      id: startIconPicker
+                      title: "Choose a Start icon"
+                      nameFilters: ["Images (*.png *.svg *.webp *.jpg *.jpeg)"]
+                      onAccepted: root.changePersonalization("icons.start", selectedFile.toString().replace("file://", ""))
+                  }
+                  FileDialog {
+                      id: wallpaperPicker
+                      title: "Choose a wallpaper"
+                      nameFilters: ["Images (*.png *.webp *.jpg *.jpeg)"]
+                      onAccepted: Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/windows-personalization", "wallpaper", selectedFile.toString().replace("file://", "")])
+                  }
+                  FileDialog {
+                      id: searchIconPicker
+                      title: "Choose a Search icon"
+                      nameFilters: ["Images (*.png *.svg *.webp *.jpg *.jpeg)"]
+                      onAccepted: root.changePersonalization("icons.search", selectedFile.toString().replace("file://", ""))
+                  }
+                  FileDialog {
+                      id: taskViewIconPicker
+                      title: "Choose a Task View icon"
+                      nameFilters: ["Images (*.png *.svg *.webp *.jpg *.jpeg)"]
+                      onAccepted: root.changePersonalization("icons.task_view", selectedFile.toString().replace("file://", ""))
+                  }
+                  ColorDialog { id: backgroundPicker; title: "Taskbar background"; onAccepted: root.changePersonalization("appearance.background", root.colorHex(selectedColor)) }
+                  ColorDialog { id: accentPicker; title: "Accent color"; onAccepted: root.changePersonalization("appearance.accent", root.colorHex(selectedColor)) }
+
+                  Rectangle { anchors.fill: parent; radius: 10; color: "#e0202631" }
+                  Rectangle {
+                      id: personalizationBack
+                      anchors.left: parent.left; anchors.leftMargin: 16; anchors.top: parent.top; anchors.topMargin: 14
+                      width: 36; height: 36; radius: 7; color: personalizationBackMouse.containsMouse ? "#3d4654" : "transparent"
+                      Text { anchors.centerIn: parent; text: "‹"; color: "white"; font.pixelSize: 28 }
+                      MouseArea { id: personalizationBackMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.personalizationOpen = false }
+                  }
+                  Text { anchors.left: personalizationBack.right; anchors.leftMargin: 12; anchors.verticalCenter: personalizationBack.verticalCenter; text: "Personalization"; color: "white"; font.pixelSize: 22; font.bold: true; font.family: root.uiFont }
+                  Text { anchors.right: parent.right; anchors.rightMargin: 20; anchors.verticalCenter: personalizationBack.verticalCenter; text: root.activePreset.name || "Windows 11"; color: "#60cdff"; font.pixelSize: 12; font.family: root.uiFont }
+
+                  Flickable {
+                      anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom
+                      anchors.topMargin: 64; anchors.bottomMargin: 14; anchors.leftMargin: 18; anchors.rightMargin: 18
+                      contentHeight: personalizationColumns.height; clip: true
+
+                      Row {
+                          id: personalizationColumns
+                          width: parent.width; spacing: 14
+
+                          Column {
+                              width: (parent.width - 14) / 2; spacing: 10
+                              Text { text: "Presets"; color: "white"; font.pixelSize: 16; font.bold: true; font.family: root.uiFont }
+                              Flow {
+                                  width: parent.width; spacing: 6
+                                  Repeater {
+                                      model: root.availablePresets
+                                      delegate: Rectangle {
+                                          required property var modelData
+                                          width: 156; height: 42; radius: 7
+                                          color: root.activePreset.slug === modelData.slug ? "#405a7187" : presetMouse.containsMouse ? "#30414d5b" : "#202a3542"
+                                          Text { anchors.centerIn: parent; text: modelData.name; color: "white"; font.pixelSize: 11; elide: Text.ElideRight; width: parent.width - 16; horizontalAlignment: Text.AlignHCenter }
+                                          MouseArea { id: presetMouse; anchors.fill: parent; hoverEnabled: true; onClicked: Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/windows-personalization", "apply", modelData.slug]) }
+                                      }
+                                  }
+                              }
+                              Rectangle {
+                                  width: parent.width; height: 46; radius: 8; color: "#202a3542"
+                                  TextInput { id: presetName; anchors.left: parent.left; anchors.right: cloneButton.left; anchors.margins: 12; anchors.verticalCenter: parent.verticalCenter; text: "My Windows"; color: "white"; selectByMouse: true; font.pixelSize: 12 }
+                                  Rectangle {
+                                      id: cloneButton; anchors.right: parent.right; anchors.margins: 5; anchors.verticalCenter: parent.verticalCenter
+                                      width: 86; height: 36; radius: 6; color: cloneMouse.containsMouse ? "#67b9e8" : "#3784ad"
+                                      Text { anchors.centerIn: parent; text: "Save new"; color: "white"; font.pixelSize: 11 }
+                                      MouseArea { id: cloneMouse; anchors.fill: parent; hoverEnabled: true; onClicked: Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/windows-personalization", "clone", presetName.text]) }
+                                  }
+                              }
+
+                              Text { text: "Taskbar edge"; color: "white"; font.pixelSize: 16; font.bold: true; font.family: root.uiFont }
+                              Row {
+                                  spacing: 6
+                                  Repeater {
+                                      model: ["bottom", "top", "left", "right"]
+                                      delegate: Rectangle {
+                                          required property string modelData
+                                          width: 76; height: 40; radius: 7; color: root.taskbarEdge === modelData ? "#3784ad" : edgeMouse.containsMouse ? "#394552" : "#252e39"
+                                          Text { anchors.centerIn: parent; text: modelData.charAt(0).toUpperCase() + modelData.slice(1); color: "white"; font.pixelSize: 11 }
+                                          MouseArea { id: edgeMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.changePersonalization("taskbar.position", modelData) }
+                                      }
+                                  }
+                              }
+                              Row {
+                                  spacing: 8
+                                  Text { anchors.verticalCenter: parent.verticalCenter; text: "Size"; color: "white"; width: 48 }
+                                  Rectangle { width: 34; height: 34; radius: 6; color: sizeDownMouse.containsMouse ? "#394552" : "#252e39"; Text { anchors.centerIn: parent; text: "−"; color: "white"; font.pixelSize: 18 } MouseArea { id: sizeDownMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.changePersonalization("taskbar.size", Math.max(34, root.taskbarThickness - 2)) } }
+                                  Text { anchors.verticalCenter: parent.verticalCenter; text: String(root.taskbarThickness); color: "#60cdff"; width: 34; horizontalAlignment: Text.AlignHCenter }
+                                  Rectangle { width: 34; height: 34; radius: 6; color: sizeUpMouse.containsMouse ? "#394552" : "#252e39"; Text { anchors.centerIn: parent; text: "+"; color: "white"; font.pixelSize: 18 } MouseArea { id: sizeUpMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.changePersonalization("taskbar.size", Math.min(96, root.taskbarThickness + 2)) } }
+                              }
+                              Text { text: "Colors and material"; color: "white"; font.pixelSize: 14; font.bold: true }
+                              Row { spacing: 8
+                                  Rectangle { width: 150; height: 38; radius: 7; color: backgroundMouse.containsMouse ? "#394552" : "#252e39"; Text { anchors.centerIn: parent; text: "Background color"; color: "white"; font.pixelSize: 11 } MouseArea { id: backgroundMouse; anchors.fill: parent; hoverEnabled: true; onClicked: backgroundPicker.open() } }
+                                  Rectangle { width: 150; height: 38; radius: 7; color: accentMouse.containsMouse ? "#394552" : "#252e39"; Text { anchors.centerIn: parent; text: "Accent color"; color: "white"; font.pixelSize: 11 } MouseArea { id: accentMouse; anchors.fill: parent; hoverEnabled: true; onClicked: accentPicker.open() } }
+                              }
+                              Text { text: "App alignment"; color: "white"; font.pixelSize: 14; font.bold: true }
+                              Row {
+                                  spacing: 6
+                                  Repeater {
+                                      model: ["center", "left"]
+                                      delegate: Rectangle {
+                                          required property string modelData
+                                          width: 110; height: 38; radius: 7
+                                          color: root.activePreset.taskbar && root.activePreset.taskbar.alignment === modelData ? "#3784ad" : alignmentMouse.containsMouse ? "#394552" : "#252e39"
+                                          Text { anchors.centerIn: parent; text: modelData; color: "white" }
+                                          MouseArea { id: alignmentMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.changePersonalization("taskbar.alignment", modelData) }
+                                      }
+                                  }
+                              }
+                              Text { text: "Start icon and wallpaper"; color: "white"; font.pixelSize: 14; font.bold: true }
+                              Row { spacing: 8
+                                  Rectangle {
+                                      width: 150; height: 40; radius: 7; color: iconMouse.containsMouse ? "#394552" : "#252e39"
+                                      Text { anchors.centerIn: parent; text: "Choose Start icon"; color: "white"; font.pixelSize: 11 }
+                                      MouseArea { id: iconMouse; anchors.fill: parent; hoverEnabled: true; onClicked: startIconPicker.open() }
+                                  }
+                                  Rectangle {
+                                      width: 150; height: 40; radius: 7; color: wallpaperMouse.containsMouse ? "#394552" : "#252e39"
+                                      Text { anchors.centerIn: parent; text: "Choose wallpaper"; color: "white"; font.pixelSize: 11 }
+                                      MouseArea { id: wallpaperMouse; anchors.fill: parent; hoverEnabled: true; onClicked: wallpaperPicker.open() }
+                                  }
+                              }
+                              Row { spacing: 8
+                                  Rectangle {
+                                      width: 150; height: 40; radius: 7; color: searchIconMouse.containsMouse ? "#394552" : "#252e39"
+                                      Text { anchors.centerIn: parent; text: "Choose Search icon"; color: "white"; font.pixelSize: 11 }
+                                      MouseArea { id: searchIconMouse; anchors.fill: parent; hoverEnabled: true; onClicked: searchIconPicker.open() }
+                                  }
+                                  Rectangle {
+                                      width: 150; height: 40; radius: 7; color: taskViewIconMouse.containsMouse ? "#394552" : "#252e39"
+                                      Text { anchors.centerIn: parent; text: "Choose Task View icon"; color: "white"; font.pixelSize: 11 }
+                                      MouseArea { id: taskViewIconMouse; anchors.fill: parent; hoverEnabled: true; onClicked: taskViewIconPicker.open() }
+                                  }
+                              }
+                          }
+
+                          Column {
+                              width: (parent.width - 14) / 2; spacing: 7
+                              Text { text: "Taskbar buttons"; color: "white"; font.pixelSize: 16; font.bold: true; font.family: root.uiFont }
+                              Repeater {
+                                  model: [
+                                      { label: "Start", key: "start" }, { label: "Search", key: "search" }, { label: "Task View", key: "task_view" },
+                                      { label: "Workspaces", key: "workspaces" }, { label: "Weather", key: "weather" }, { label: "Pinned apps", key: "pinned_apps" },
+                                      { label: "Running apps", key: "running_apps" }, { label: "System tray", key: "tray" }, { label: "Network", key: "network" },
+                                      { label: "Volume", key: "volume" }, { label: "Clock", key: "clock" }, { label: "Notifications", key: "notifications" },
+                                      { label: "Show Desktop", key: "show_desktop" }
+                                  ]
+                                  delegate: Rectangle {
+                                      required property var modelData
+                                      readonly property bool enabledValue: !!(root.activePreset.taskbar && root.activePreset.taskbar.show[modelData.key])
+                                      width: parent.width; height: 34; radius: 6; color: toggleMouse.containsMouse ? "#293441" : "transparent"
+                                      Text { anchors.left: parent.left; anchors.leftMargin: 8; anchors.verticalCenter: parent.verticalCenter; text: modelData.label; color: "white"; font.pixelSize: 12 }
+                                      Rectangle { anchors.right: parent.right; anchors.rightMargin: 8; anchors.verticalCenter: parent.verticalCenter; width: 38; height: 20; radius: 10; color: parent.enabledValue ? "#60cdff" : "#4b5665"; Rectangle { width: 14; height: 14; radius: 7; color: "white"; anchors.verticalCenter: parent.verticalCenter; x: parent.parent.enabledValue ? 21 : 3; Behavior on x { NumberAnimation { duration: 140 } } } }
+                                      MouseArea { id: toggleMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.changePersonalization("taskbar.show." + modelData.key, !parent.enabledValue) }
+                                  }
+                              }
+                              Text { text: "Motion"; color: "white"; font.pixelSize: 16; font.bold: true; font.family: root.uiFont }
+                              Repeater {
+                                  model: [{ label: "Shell panels follow taskbar", key: "shell_panels" }, { label: "Application windows", key: "windows" }, { label: "Workspace transitions", key: "workspaces" }]
+                                  delegate: Rectangle {
+                                      required property var modelData
+                                      readonly property bool enabledValue: !!(root.activePreset.motion && root.activePreset.motion[modelData.key])
+                                      width: parent.width; height: 38; radius: 6; color: motionMouse.containsMouse ? "#293441" : "transparent"
+                                      Text { anchors.left: parent.left; anchors.leftMargin: 8; anchors.verticalCenter: parent.verticalCenter; text: modelData.label; color: "white"; font.pixelSize: 12 }
+                                      Text { anchors.right: parent.right; anchors.rightMargin: 10; anchors.verticalCenter: parent.verticalCenter; text: parent.enabledValue ? "On" : "Off"; color: parent.enabledValue ? "#60cdff" : "#9aa4af" }
+                                      MouseArea { id: motionMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.changePersonalization("motion." + modelData.key, !parent.enabledValue) }
                                   }
                               }
                           }
@@ -1237,8 +1486,8 @@ import Quickshell
           id: calendarPanel
           visible: root.calendarOpen
           WlrLayershell.namespace: "windows-calendar"
-          anchors { right: true; bottom: true }
-          margins { right: 10; bottom: 56 }
+          anchors { left: root.taskbarEdge === "left"; right: root.taskbarEdge !== "left"; top: root.taskbarEdge === "top"; bottom: root.taskbarEdge !== "top" }
+          margins { left: root.taskbarEdge === "left" ? root.panelGap : 0; right: root.taskbarEdge === "right" ? root.panelGap : 10; top: root.taskbarEdge === "top" ? root.panelGap : 0; bottom: root.taskbarEdge === "bottom" ? root.panelGap : 0 }
           implicitWidth: 350
           implicitHeight: 390
           exclusiveZone: 0
@@ -1253,6 +1502,11 @@ import Quickshell
               transformOrigin: Item.BottomRight
               scale: root.calendarOpen ? 1 : 0.88
               opacity: root.calendarOpen ? 1 : 0
+              transform: Translate {
+                  x: root.panelOffsetX(root.calendarOpen); y: root.panelOffsetY(root.calendarOpen)
+                  Behavior on x { NumberAnimation { duration: root.motionDuration; easing.type: Easing.OutCubic } }
+                  Behavior on y { NumberAnimation { duration: root.motionDuration; easing.type: Easing.OutCubic } }
+              }
               Behavior on scale { NumberAnimation { duration: 260; easing.type: Easing.OutBack } }
               Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
 
@@ -1343,8 +1597,8 @@ import Quickshell
       PanelWindow {
           visible: root.notificationsOpen
           WlrLayershell.namespace: "windows-notifications"
-          anchors { right: true; bottom: true }
-          margins { right: 10; bottom: 56 }
+          anchors { left: root.taskbarEdge === "left"; right: root.taskbarEdge !== "left"; top: root.taskbarEdge === "top"; bottom: root.taskbarEdge !== "top" }
+          margins { left: root.taskbarEdge === "left" ? root.panelGap : 0; right: root.taskbarEdge === "right" ? root.panelGap : 10; top: root.taskbarEdge === "top" ? root.panelGap : 0; bottom: root.taskbarEdge === "bottom" ? root.panelGap : 0 }
           implicitWidth: 370; implicitHeight: 310
           exclusiveZone: 0; color: "transparent"
           Rectangle {
@@ -1353,6 +1607,11 @@ import Quickshell
               transformOrigin: Item.BottomRight
               scale: root.notificationsOpen ? 1 : 0.88
               opacity: root.notificationsOpen ? 1 : 0
+              transform: Translate {
+                  x: root.panelOffsetX(root.notificationsOpen); y: root.panelOffsetY(root.notificationsOpen)
+                  Behavior on x { NumberAnimation { duration: root.motionDuration; easing.type: Easing.OutCubic } }
+                  Behavior on y { NumberAnimation { duration: root.motionDuration; easing.type: Easing.OutCubic } }
+              }
               Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutBack } }
               Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
               Text { anchors.left: parent.left; anchors.leftMargin: 22; anchors.top: parent.top; anchors.topMargin: 20; text: "Notifications"; color: "white"; font.family: root.uiFont; font.pixelSize: 18; font.bold: true }
@@ -1383,14 +1642,19 @@ import Quickshell
       PanelWindow {
           visible: root.powerOpen
           WlrLayershell.namespace: "windows-power"
-          anchors { bottom: true }
-          margins { bottom: 56 }
+          anchors { left: root.taskbarEdge === "left"; right: root.taskbarEdge === "right"; top: root.taskbarEdge === "top"; bottom: root.taskbarEdge === "bottom" }
+          margins { left: root.taskbarEdge === "left" ? root.panelGap : 0; right: root.taskbarEdge === "right" ? root.panelGap : 0; top: root.taskbarEdge === "top" ? root.panelGap : 0; bottom: root.taskbarEdge === "bottom" ? root.panelGap : 0 }
           implicitWidth: 270; implicitHeight: 285
           exclusiveZone: 0; color: "transparent"
           Rectangle {
               anchors.fill: parent; radius: 11
               color: "#c7202631"; border.width: 1; border.color: "#38ffffff"
               transformOrigin: Item.Bottom; scale: root.powerOpen ? 1 : 0.86; opacity: root.powerOpen ? 1 : 0
+              transform: Translate {
+                  x: root.panelOffsetX(root.powerOpen); y: root.panelOffsetY(root.powerOpen)
+                  Behavior on x { NumberAnimation { duration: root.motionDuration; easing.type: Easing.OutCubic } }
+                  Behavior on y { NumberAnimation { duration: root.motionDuration; easing.type: Easing.OutCubic } }
+              }
               Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutBack } }
               Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
               Text { anchors.left: parent.left; anchors.leftMargin: 20; anchors.top: parent.top; anchors.topMargin: 18; text: "Power"; color: "white"; font.family: root.uiFont; font.pixelSize: 17; font.bold: true }
@@ -1424,14 +1688,19 @@ import Quickshell
       PanelWindow {
           visible: root.trayOpen
           WlrLayershell.namespace: "windows-tray"
-          anchors { right: true; bottom: true }
-          margins { right: 106; bottom: 56 }
+          anchors { left: root.taskbarEdge === "left"; right: root.taskbarEdge !== "left"; top: root.taskbarEdge === "top"; bottom: root.taskbarEdge !== "top" }
+          margins { left: root.taskbarEdge === "left" ? root.panelGap : 0; right: root.taskbarEdge === "right" ? root.panelGap : 106; top: root.taskbarEdge === "top" ? root.panelGap : 0; bottom: root.taskbarEdge === "bottom" ? root.panelGap : 0 }
           implicitWidth: 280; implicitHeight: 255
           exclusiveZone: 0; color: "transparent"
           Rectangle {
               anchors.fill: parent; radius: 11
               color: "#c7202631"; border.width: 1; border.color: "#38ffffff"
               transformOrigin: Item.BottomRight; scale: root.trayOpen ? 1 : 0.88; opacity: root.trayOpen ? 1 : 0
+              transform: Translate {
+                  x: root.panelOffsetX(root.trayOpen); y: root.panelOffsetY(root.trayOpen)
+                  Behavior on x { NumberAnimation { duration: root.motionDuration; easing.type: Easing.OutCubic } }
+                  Behavior on y { NumberAnimation { duration: root.motionDuration; easing.type: Easing.OutCubic } }
+              }
               Behavior on scale { NumberAnimation { duration: 240; easing.type: Easing.OutBack } }
               Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
               Text { anchors.left: parent.left; anchors.leftMargin: 20; anchors.top: parent.top; anchors.topMargin: 18; text: "System controls"; color: "white"; font.family: root.uiFont; font.pixelSize: 17; font.bold: true }
@@ -1478,11 +1747,17 @@ import Quickshell
           }
 
           anchors {
-              bottom: true
+              left: root.taskbarEdge === "left"
+              right: root.taskbarEdge === "right"
+              top: root.taskbarEdge === "top"
+              bottom: root.taskbarEdge === "bottom"
           }
 
           margins {
-              bottom: 56
+              left: root.taskbarEdge === "left" ? root.panelGap : 0
+              right: root.taskbarEdge === "right" ? root.panelGap : 0
+              top: root.taskbarEdge === "top" ? root.panelGap : 0
+              bottom: root.taskbarEdge === "bottom" ? root.panelGap : 0
           }
 
           implicitWidth: 620
@@ -1500,6 +1775,12 @@ import Quickshell
               transformOrigin: Item.Bottom
               scale: root.startOpen ? 1 : 0.88
               opacity: root.startOpen ? 1 : 0
+              transform: Translate {
+                  x: root.panelOffsetX(root.startOpen)
+                  y: root.panelOffsetY(root.startOpen)
+                  Behavior on x { NumberAnimation { duration: root.motionDuration; easing.type: Easing.OutCubic } }
+                  Behavior on y { NumberAnimation { duration: root.motionDuration; easing.type: Easing.OutCubic } }
+              }
               Behavior on scale {
                   NumberAnimation { duration: 280; easing.type: Easing.OutBack }
               }

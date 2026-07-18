@@ -1,0 +1,446 @@
+#!/usr/bin/env python3
+
+"""Beginner-facing preset manager and atomic Windows rice generator."""
+
+from __future__ import annotations
+
+import copy
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import zipfile
+from pathlib import Path
+
+HOME = Path.home()
+CONFIG = HOME / ".config/windows11"
+PRESETS = CONFIG / "presets"
+ACTIVE = CONFIG / "active-preset"
+WAYBAR = HOME / ".config/waybar/windows11/config.jsonc"
+STYLE = HOME / ".config/waybar/windows11/style.css"
+HYPR_ACTIVE = HOME / ".config/hypr/config/settings.conf"
+HYPR_PROFILE = HOME / ".config/hypr/profiles/windows11/config/settings.conf"
+STATE = HOME / ".local/state/windows11-personalization"
+CSS_START = "/* WINDOWS_PERSONALIZATION_START */"
+CSS_END = "/* WINDOWS_PERSONALIZATION_END */"
+HYPR_START = "# WINDOWS_PERSONALIZATION_START"
+HYPR_END = "# WINDOWS_PERSONALIZATION_END"
+
+DEFAULT = {
+    "schema_version": 1,
+    "name": "Windows 11",
+    "taskbar": {
+        "position": "bottom", "alignment": "center", "size": 48, "margin": 0,
+        "floating": False,
+        "show": {
+            "start": True, "search": True, "task_view": True, "workspaces": True,
+            "weather": True, "pinned_apps": True, "running_apps": True,
+            "tray": True, "network": True, "volume": True, "clock": True,
+            "notifications": True, "show_desktop": True,
+        },
+    },
+    "appearance": {
+        "background": "#0d131d", "opacity": 0.62, "accent": "#60cdff",
+        "text": "#f5f5f5", "radius": 0, "icon_size": 25, "spacing": 0,
+    },
+    "icons": {"start": "", "search": "", "task_view": ""},
+    "motion": {
+        "follow_taskbar": True, "shell_panels": True, "windows": True,
+        "workspaces": True, "duration_ms": 280, "distance": 36, "fade": True,
+    },
+    "wallpaper": "",
+    "theme_scope": "Shell only",
+}
+
+MODULES = {
+    "start": "custom/start", "search": "custom/search", "task_view": "custom/taskview",
+    "workspaces": "hyprland/workspaces", "weather": "custom/weather",
+    "running_apps": "wlr/taskbar", "tray": "custom/chevron", "network": "custom/wifi",
+    "volume": "custom/volume", "clock": "clock", "notifications": "custom/alert",
+    "show_desktop": "custom/showdesktop",
+}
+
+
+def atomic_write(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=path.name + ".", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(text)
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def slugify(name: str) -> str:
+    value = re.sub(r"[^a-z0-9]+", "-", name.casefold()).strip("-")
+    return value or "custom-preset"
+
+
+def factory_path() -> Path:
+    return PRESETS / "windows-11" / "preset.json"
+
+
+def ensure() -> None:
+    PRESETS.mkdir(parents=True, exist_ok=True)
+    STATE.mkdir(parents=True, exist_ok=True)
+    atomic_write(factory_path(), json.dumps(DEFAULT, indent=2) + "\n")
+    if not ACTIVE.exists():
+        atomic_write(ACTIVE, "windows-11\n")
+
+
+def merge(base, value):
+    if isinstance(base, dict) and isinstance(value, dict):
+        result = copy.deepcopy(base)
+        for key, item in value.items():
+            result[key] = merge(result[key], item) if key in result else item
+        return result
+    return value
+
+
+def validate(raw: dict) -> dict:
+    data = merge(DEFAULT, raw)
+    bar, look, motion = data["taskbar"], data["appearance"], data["motion"]
+    if bar["position"] not in {"bottom", "top", "left", "right"}:
+        raise ValueError("Taskbar position must be bottom, top, left, or right")
+    if bar["alignment"] not in {"center", "left"}:
+        raise ValueError("Taskbar alignment must be center or left")
+    bar["size"] = max(34, min(96, int(bar["size"])))
+    bar["margin"] = max(0, min(48, int(bar["margin"])))
+    look["opacity"] = max(0.05, min(1.0, float(look["opacity"])))
+    look["radius"] = max(0, min(32, int(look["radius"])))
+    look["icon_size"] = max(14, min(48, int(look["icon_size"])))
+    motion["duration_ms"] = max(0, min(1200, int(motion["duration_ms"])))
+    motion["distance"] = max(0, min(160, int(motion["distance"])))
+    for key in ("background", "accent", "text"):
+        if not re.fullmatch(r"#[0-9a-fA-F]{6}", str(look[key])):
+            raise ValueError(f"{key.replace('_', ' ').title()} must be a six-digit hex color")
+    return data
+
+
+def preset_path(slug: str) -> Path:
+    return PRESETS / slug / "preset.json"
+
+
+def load(slug: str | None = None) -> tuple[str, dict]:
+    ensure()
+    selected = slug or ACTIVE.read_text(encoding="utf-8").strip() or "windows-11"
+    path = preset_path(selected)
+    if not path.exists():
+        selected, path = "windows-11", factory_path()
+    return selected, validate(json.loads(path.read_text(encoding="utf-8")))
+
+
+def save(slug: str, data: dict) -> None:
+    if slug == "windows-11":
+        raise ValueError("The factory preset is protected; duplicate it first")
+    atomic_write(preset_path(slug), json.dumps(validate(data), indent=2) + "\n")
+
+
+def replace_block(text: str, start: str, end: str, block: str) -> str:
+    pattern = re.compile(re.escape(start) + r".*?" + re.escape(end), re.S)
+    text = pattern.sub("", text).rstrip() + "\n\n"
+    return text + start + "\n" + block.rstrip() + "\n" + end + "\n"
+
+
+def rgba(color: str, opacity: float) -> str:
+    red, green, blue = int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16)
+    return f"rgba({red}, {green}, {blue}, {opacity:.3f})"
+
+
+def copy_icon(slug: str, key: str, source: str) -> str:
+    if not source:
+        return ""
+    path = Path(source).expanduser()
+    if not path.is_file():
+        return source if source.startswith(str(PRESETS)) else ""
+    target_dir = PRESETS / slug / "assets"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target = target_dir / f"{key}{path.suffix.lower()}"
+    shutil.copy2(path, target)
+    return str(target)
+
+
+def backup_files() -> Path:
+    backup = STATE / "rollback"
+    if backup.exists():
+        shutil.rmtree(backup)
+    backup.mkdir(parents=True)
+    for index, path in enumerate((WAYBAR, STYLE, HYPR_ACTIVE, HYPR_PROFILE)):
+        if path.exists():
+            shutil.copy2(path, backup / f"{index}-{path.name}")
+    return backup
+
+
+def restore_files(backup: Path) -> None:
+    for index, path in enumerate((WAYBAR, STYLE, HYPR_ACTIVE, HYPR_PROFILE)):
+        source = backup / f"{index}-{path.name}"
+        if source.exists():
+            shutil.copy2(source, path)
+
+
+def generate_waybar(data: dict) -> None:
+    config = json.loads(WAYBAR.read_text(encoding="utf-8"))
+    bar, shown = data["taskbar"], data["taskbar"]["show"]
+    every = config.get("modules-left", []) + config.get("modules-center", []) + config.get("modules-right", [])
+    pins = [item for item in every if item.startswith("custom/pin-")]
+    left = []
+    if shown["weather"]: left.append(MODULES["weather"])
+    if shown["workspaces"]: left.append(MODULES["workspaces"])
+    core = []
+    for key in ("start", "search", "task_view"):
+        if shown[key]: core.append(MODULES[key])
+    if shown["pinned_apps"]: core.extend(pins)
+    if shown["running_apps"]: core.append(MODULES["running_apps"])
+    right = [MODULES[key] for key in ("tray", "network", "volume", "clock", "notifications", "show_desktop") if shown[key]]
+    if bar["alignment"] == "left":
+        left.extend(core); core = []
+    config["modules-left"], config["modules-center"], config["modules-right"] = left, core, right
+    config["position"] = bar["position"]
+    config["spacing"] = int(data["appearance"]["spacing"])
+    config.pop("height", None); config.pop("width", None)
+    config["height" if bar["position"] in {"top", "bottom"} else "width"] = bar["size"]
+    for edge in ("top", "right", "bottom", "left"):
+        config[f"margin-{edge}"] = bar["margin"] if bar["floating"] else 0
+    config["wlr/taskbar"]["icon-size"] = data["appearance"]["icon_size"]
+    atomic_write(WAYBAR, json.dumps(config, indent=2) + "\n")
+
+    look, icons = data["appearance"], data["icons"]
+    horizontal = bar["position"] in {"top", "bottom"}
+    border_side = {"bottom": "top", "top": "bottom", "left": "right", "right": "left"}[bar["position"]]
+    selectors = "#custom-start, #custom-search, #custom-taskview, #taskbar button"
+    overrides = f"""
+window#waybar.windows11-taskbar {{
+  background-color: {rgba(look['background'], look['opacity'])};
+  color: {look['text']};
+  border: none;
+  border-{border_side}: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: {look['radius']}px;
+}}
+{selectors} {{
+  min-width: {bar['size'] - 4 if not horizontal else 44}px;
+  min-height: {bar['size'] - 4 if horizontal else 44}px;
+}}
+#workspaces button.active {{ box-shadow: inset 0 -2px {look['accent']}; }}
+"""
+    defaults = {
+        "start": HOME / ".config/quickshell/windows11/assets/windows-logo-2021-23-rgba.png",
+        "search": HOME / ".config/quickshell/windows11/assets/search-waybar.png",
+        "task_view": HOME / ".config/quickshell/windows11/assets/taskview-waybar.png",
+    }
+    for key, selector in (("start", "#custom-start"), ("search", "#custom-search"), ("task_view", "#custom-taskview")):
+        icon = icons.get(key) or str(defaults[key])
+        overrides += f'{selector} {{ background-image: url("{icon}"); }}\n'
+    style = replace_block(STYLE.read_text(encoding="utf-8"), CSS_START, CSS_END, overrides)
+    atomic_write(STYLE, style)
+
+
+def generate_hypr(data: dict) -> None:
+    edge, motion = data["taskbar"]["position"], data["motion"]
+    axis = "slidevert" if edge in {"top", "bottom"} else "slide"
+    window_style = f"slide {edge}" if motion["windows"] else "popin 86%"
+    layer_style = f"slide {edge}" if motion["shell_panels"] else "fade"
+    workspace_style = axis if motion["workspaces"] else "fade"
+    duration = max(1, round(motion["duration_ms"] / 70))
+    block = f"""animations {{
+    animation = windowsIn, 1, {duration}, spring, {window_style}
+    animation = windowsOut, 1, {duration}, fluentIn, {window_style}
+    animation = layersIn, 1, {duration}, spring, {layer_style}
+    animation = layersOut, 1, {duration}, fluentIn, {layer_style}
+    animation = workspaces, 1, {duration}, workspaceFlow, {workspace_style}
+}}"""
+    for path in (HYPR_ACTIVE, HYPR_PROFILE):
+        if path.exists():
+            atomic_write(path, replace_block(path.read_text(encoding="utf-8"), HYPR_START, HYPR_END, block))
+
+
+def apply(slug: str, data: dict, restart: bool = True) -> None:
+    data = validate(data)
+    if slug == "windows-11" and data != DEFAULT:
+        slug = "my-windows"
+        data["name"] = "My Windows"
+    for key in ("start", "search", "task_view"):
+        data["icons"][key] = copy_icon(slug, key, data["icons"].get(key, ""))
+    backup = backup_files()
+    try:
+        generate_waybar(data)
+        generate_hypr(data)
+        save(slug, data) if slug != "windows-11" else None
+        atomic_write(ACTIVE, slug + "\n")
+        if data.get("wallpaper") and Path(data["wallpaper"]).expanduser().is_file():
+            subprocess.run(["awww", "img", str(Path(data["wallpaper"]).expanduser()), "--resize", "crop"], check=False)
+        subprocess.run(["hyprctl", "reload"], check=False, stdout=subprocess.DEVNULL)
+        errors = subprocess.run(["hyprctl", "configerrors"], text=True, capture_output=True).stdout.strip()
+        if errors:
+            raise RuntimeError(errors)
+        if restart:
+            subprocess.Popen([str(HOME / ".local/bin/windows-shell"), "restart"], start_new_session=True)
+    except Exception:
+        restore_files(backup)
+        subprocess.run(["hyprctl", "reload"], check=False)
+        raise
+
+
+def combo(selected: str, values: list[str]) -> str:
+    return "!".join([selected] + [item for item in values if item != selected])
+
+
+def check(value) -> str:
+    return "TRUE" if value else "FALSE"
+
+
+def gui() -> int:
+    slug, data = load()
+    available = [path.parent.name for path in sorted(PRESETS.glob("*/preset.json"))]
+    bar, shown, look, motion = data["taskbar"], data["taskbar"]["show"], data["appearance"], data["motion"]
+    fields = [
+        ("Preset", "CB", combo(slug, available)),
+        ("Taskbar edge", "CB", combo(bar["position"], ["bottom", "top", "left", "right"])),
+        ("App alignment", "CB", combo(bar["alignment"], ["center", "left"])),
+        ("Taskbar size", "NUM", f"{bar['size']}!34!96!1"),
+        ("Screen margin", "NUM", f"{bar['margin']}!0!48!1"),
+        ("Floating taskbar", "CHK", check(bar["floating"])),
+        ("Show Start", "CHK", check(shown["start"])), ("Show Search", "CHK", check(shown["search"])),
+        ("Show Task View", "CHK", check(shown["task_view"])), ("Show workspaces", "CHK", check(shown["workspaces"])),
+        ("Show weather", "CHK", check(shown["weather"])), ("Show pinned apps", "CHK", check(shown["pinned_apps"])),
+        ("Show running apps", "CHK", check(shown["running_apps"])), ("Show tray", "CHK", check(shown["tray"])),
+        ("Show network", "CHK", check(shown["network"])), ("Show volume", "CHK", check(shown["volume"])),
+        ("Show clock", "CHK", check(shown["clock"])), ("Show notifications", "CHK", check(shown["notifications"])),
+        ("Show Desktop corner", "CHK", check(shown["show_desktop"])),
+        ("Background", "CLR", look["background"]), ("Opacity", "NUM", f"{look['opacity']}!0.05!1!0.01"),
+        ("Accent", "CLR", look["accent"]), ("Corner radius", "NUM", f"{look['radius']}!0!32!1"),
+        ("Icon size", "NUM", f"{look['icon_size']}!14!48!1"),
+        ("Custom Start icon", "FL", data["icons"]["start"]),
+        ("Custom Search icon", "FL", data["icons"]["search"]),
+        ("Custom Task View icon", "FL", data["icons"]["task_view"]),
+        ("Wallpaper", "FL", data.get("wallpaper", "")),
+        ("Animate shell panels", "CHK", check(motion["shell_panels"])),
+        ("Animate app windows", "CHK", check(motion["windows"])),
+        ("Animate workspaces", "CHK", check(motion["workspaces"])),
+        ("Motion duration (ms)", "NUM", f"{motion['duration_ms']}!0!1200!10"),
+        ("Motion distance", "NUM", f"{motion['distance']}!0!160!1"),
+    ]
+    command = ["yad", "--form", "--title=Windows Personalization", "--width=1080", "--height=720", "--center", "--scroll", "--columns=2", "--separator=|",
+               "--text=<span size='x-large'><b>Personalization</b></span>\nEverything here is safe to undo. The factory preset is protected."]
+    for label, kind, value in fields:
+        command += [f"--field={label}:{kind}", str(value)]
+    command += ["--button=Save as new:2", "--button=Import:3", "--button=Export:4", "--button=Factory defaults:5", "--button=Load selected:6", "--button=Delete selected:7", "--button=Rename selected:8", "--button=Apply:0", "--button=Cancel:1"]
+    result = subprocess.run(command, text=True, capture_output=True)
+    if result.returncode == 1 or result.returncode < 0: return 0
+    if result.returncode == 3: return import_preset()
+    values = result.stdout.rstrip("\n|").split("|")
+    if len(values) < len(fields): return 1
+    value = dict(zip([item[0] for item in fields], values))
+    chosen = value["Preset"] or slug
+    if result.returncode == 4:
+        selected, selected_data = load(chosen); return export_preset(selected, selected_data)
+    if result.returncode == 5:
+        apply("windows-11", copy.deepcopy(DEFAULT)); return 0
+    if result.returncode == 6:
+        selected, selected_data = load(chosen); apply(selected, selected_data); return 0
+    if result.returncode == 7:
+        if chosen == "windows-11": raise ValueError("The factory preset cannot be deleted")
+        shutil.rmtree(PRESETS / chosen); apply("windows-11", copy.deepcopy(DEFAULT)); return 0
+    if result.returncode == 8:
+        if chosen == "windows-11": raise ValueError("The factory preset cannot be renamed")
+        selected, selected_data = load(chosen)
+        name = subprocess.run(["yad", "--entry", "--title=Rename preset", f"--entry-text={selected_data['name']}"], text=True, capture_output=True)
+        if name.returncode != 0: return 0
+        selected_data["name"] = name.stdout.strip() or selected_data["name"]
+        renamed = slugify(selected_data["name"])
+        if renamed != selected: shutil.move(PRESETS / selected, PRESETS / renamed)
+        save(renamed, selected_data); apply(renamed, selected_data); return 0
+    slug = chosen
+    truth = lambda key: value[key].casefold() == "true"
+    bar.update(position=value["Taskbar edge"], alignment=value["App alignment"], size=int(float(value["Taskbar size"])), margin=int(float(value["Screen margin"])), floating=truth("Floating taskbar"))
+    labels = {"start":"Show Start", "search":"Show Search", "task_view":"Show Task View", "workspaces":"Show workspaces", "weather":"Show weather", "pinned_apps":"Show pinned apps", "running_apps":"Show running apps", "tray":"Show tray", "network":"Show network", "volume":"Show volume", "clock":"Show clock", "notifications":"Show notifications", "show_desktop":"Show Desktop corner"}
+    for key, label in labels.items(): shown[key] = truth(label)
+    look.update(background=value["Background"][:7], opacity=float(value["Opacity"]), accent=value["Accent"][:7], radius=int(float(value["Corner radius"])), icon_size=int(float(value["Icon size"])))
+    data["icons"].update(start=value["Custom Start icon"], search=value["Custom Search icon"], task_view=value["Custom Task View icon"])
+    data["wallpaper"] = value["Wallpaper"]
+    motion.update(shell_panels=truth("Animate shell panels"), windows=truth("Animate app windows"), workspaces=truth("Animate workspaces"), duration_ms=int(float(value["Motion duration (ms)"])), distance=int(float(value["Motion distance"])))
+    if result.returncode == 2:
+        name = subprocess.run(["yad", "--entry", "--title=New preset", "--text=Name your preset", "--entry-text=My Windows"], text=True, capture_output=True)
+        if name.returncode != 0: return 0
+        data["name"] = name.stdout.strip() or "My Windows"; slug = slugify(data["name"])
+    apply(slug, data)
+    return 0
+
+
+def export_preset(slug: str, data: dict) -> int:
+    result = subprocess.run(["yad", "--file", "--save", "--confirm-overwrite", "--title=Export preset", f"--filename={HOME / (slug + '.winrice.zip')}"], text=True, capture_output=True)
+    if result.returncode != 0: return 0
+    destination = Path(result.stdout.strip())
+    with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("preset.json", json.dumps(data, indent=2) + "\n")
+        assets = PRESETS / slug / "assets"
+        if assets.exists():
+            for path in assets.iterdir(): archive.write(path, "assets/" + path.name)
+    return 0
+
+
+def import_preset() -> int:
+    result = subprocess.run(["yad", "--file", "--title=Import preset", "--file-filter=Windows rice preset | *.zip *.winrice"], text=True, capture_output=True)
+    if result.returncode != 0: return 0
+    source = Path(result.stdout.strip())
+    with zipfile.ZipFile(source) as archive:
+        if "preset.json" not in archive.namelist(): raise ValueError("Preset package has no preset.json")
+        data = validate(json.loads(archive.read("preset.json")))
+        slug = slugify(data["name"]); target = PRESETS / slug; target.mkdir(parents=True, exist_ok=True)
+        for member in archive.infolist():
+            if member.filename.startswith("assets/") and ".." not in Path(member.filename).parts:
+                archive.extract(member, target)
+        save(slug, data); apply(slug, data)
+    return 0
+
+
+def main() -> int:
+    ensure()
+    command = sys.argv[1] if len(sys.argv) > 1 else "state"
+    if command == "state":
+        slug, data = load()
+        presets = []
+        for path in sorted(PRESETS.glob("*/preset.json")):
+            item = json.loads(path.read_text(encoding="utf-8"))
+            presets.append({"slug": path.parent.name, "name": item.get("name", path.parent.name), "protected": path.parent.name == "windows-11"})
+        print(json.dumps({"slug": slug, "presets": presets, **data})); return 0
+    if command == "apply":
+        slug = sys.argv[2] if len(sys.argv) > 2 else load()[0]; selected, data = load(slug); apply(selected, data); return 0
+    if command == "sync":
+        selected, data = load(); apply(selected, data, restart=False); return 0
+    if command == "set" and len(sys.argv) == 4:
+        selected, data = load(); keys = sys.argv[2].split("."); target = data
+        for key in keys[:-1]: target = target[key]
+        old, raw = target[keys[-1]], sys.argv[3]
+        if isinstance(old, bool): value = raw.casefold() in {"1", "true", "yes", "on"}
+        elif isinstance(old, int): value = int(float(raw))
+        elif isinstance(old, float): value = float(raw)
+        else: value = raw
+        target[keys[-1]] = value; apply(selected, data); return 0
+    if command == "clone" and len(sys.argv) >= 3:
+        _, data = load(); data["name"] = " ".join(sys.argv[2:]).strip() or "My Windows"
+        selected = slugify(data["name"]); save(selected, data); apply(selected, data); return 0
+    if command == "delete" and len(sys.argv) == 3:
+        if sys.argv[2] == "windows-11": raise ValueError("The factory preset cannot be deleted")
+        shutil.rmtree(PRESETS / sys.argv[2], ignore_errors=False); apply("windows-11", copy.deepcopy(DEFAULT)); return 0
+    if command == "icon" and len(sys.argv) == 4:
+        selected, data = load(); data["icons"][sys.argv[2]] = sys.argv[3]; apply(selected, data); return 0
+    if command == "wallpaper" and len(sys.argv) == 3:
+        selected, data = load(); data["wallpaper"] = sys.argv[2]; apply(selected, data); return 0
+    if command == "list":
+        for path in sorted(PRESETS.glob("*/preset.json")):
+            print(path.parent.name + "\t" + json.loads(path.read_text()).get("name", path.parent.name))
+        return 0
+    raise SystemExit("usage: windows-personalization [state|list|apply PRESET|sync|set KEY VALUE|clone NAME|delete PRESET|icon NAME FILE|wallpaper FILE]")
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except Exception as error:
+        print(f"Personalization error: {error}", file=sys.stderr)
+        raise
