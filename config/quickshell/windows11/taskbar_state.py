@@ -29,4 +29,5 @@ classes = sorted({
 print(json.dumps({
     "clients": classes,
     "active": str(active.get("class") or active.get("initialClass") or "").casefold(),
+    "address": str(active.get("address") or ""),
 }))

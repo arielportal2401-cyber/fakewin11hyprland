@@ -33,6 +33,7 @@ import Quickshell
       property date currentTime: new Date()
       property var runningClasses: []
       property string activeClass: ""
+      property string activeAddress: ""
       property bool wifiEnabled: false
       property bool bluetoothEnabled: false
       property real outputVolume: 0
@@ -62,6 +63,28 @@ import Quickshell
 
       function changePersonalization(key, value) {
           Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/windows-personalization", "set", key, String(value)])
+      }
+
+      function closeRightMenu() {
+          root.quickSettingsOpen = false
+          root.wifiDetailsOpen = false
+          root.bluetoothDetailsOpen = false
+          root.settingsDetailsOpen = false
+          root.personalizationOpen = false
+      }
+
+      function closeAllMenus() {
+          root.startOpen = false
+          root.closeRightMenu()
+          root.calendarOpen = false
+          root.notificationsOpen = false
+          root.powerOpen = false
+          root.trayOpen = false
+      }
+
+      function openSystemDialog(dialog) {
+          dialog.open()
+          Qt.callLater(root.closeRightMenu)
       }
 
       function colorHex(color) {
@@ -285,8 +308,13 @@ import Quickshell
               onStreamFinished: {
                   try {
                       const state = JSON.parse(text)
+                      const previousAddress = root.activeAddress
                       root.runningClasses = state.clients
                       root.activeClass = state.active
+                      root.activeAddress = state.address || ""
+                      if (root.quickSettingsOpen && previousAddress.length > 0
+                              && root.activeAddress !== previousAddress)
+                          root.closeRightMenu()
                   } catch (error) {
                       console.log("Could not update taskbar state:", error)
                   }
@@ -392,6 +420,7 @@ import Quickshell
       }
 
       function launchApp(command, match) {
+          root.closeAllMenus()
           const executor = Quickshell.env("HOME") + "/.local/bin/windows-command-exec"
           if (match && match.length > 0) {
               Quickshell.execDetached([
@@ -402,10 +431,10 @@ import Quickshell
               Quickshell.execDetached(["hyprctl", "dispatch", "exec", "--", executor, command])
           }
           search.text = ""
-          root.startOpen = false
       }
 
       function showAppMenu(name, command, icon, match) {
+          root.closeAllMenus()
           Quickshell.execDetached([
               Quickshell.env("HOME") + "/.local/bin/windows-start-app-menu",
               name, command, icon, match || ""
@@ -414,12 +443,12 @@ import Quickshell
 
       function taskbarActivate(item) {
           if (item.action === "search") {
+              root.closeAllMenus()
               root.startOpen = true
-              root.quickSettingsOpen = false
               search.forceActiveFocus()
           } else if (item.action === "allapps") {
+              root.closeAllMenus()
               root.startOpen = true
-              root.quickSettingsOpen = false
               root.showAllApps()
           } else {
               root.launchApp(item.command, item.match || "")
@@ -437,6 +466,7 @@ import Quickshell
 
           function toggle(): void {
               root.startOpen = !root.startOpen
+              root.closeRightMenu()
               root.calendarOpen = false
               root.notificationsOpen = false
               root.powerOpen = false
@@ -444,43 +474,30 @@ import Quickshell
           }
 
           function toggleQuickSettings(): void {
-              root.quickSettingsOpen = !root.quickSettingsOpen
-              root.startOpen = false
-              root.calendarOpen = false
-              root.notificationsOpen = false
-              root.powerOpen = false
-              root.trayOpen = false
-              if (!root.quickSettingsOpen)
-                  root.wifiDetailsOpen = false
-              if (!root.quickSettingsOpen)
-                  root.bluetoothDetailsOpen = false
-              if (!root.quickSettingsOpen)
-                  root.settingsDetailsOpen = false
+              const shouldOpen = !root.quickSettingsOpen
+              root.closeAllMenus()
+              root.quickSettingsOpen = shouldOpen
           }
 
           function openWifi(): void {
+              root.closeAllMenus()
               root.quickSettingsOpen = true
-              root.startOpen = false
-              root.calendarOpen = false
               root.wifiDetailsOpen = true
               root.refreshWifi()
               root.scanWifi()
           }
 
           function openBluetooth(): void {
+              root.closeAllMenus()
               root.quickSettingsOpen = true
-              root.startOpen = false
-              root.calendarOpen = false
-              root.wifiDetailsOpen = false
               root.bluetoothDetailsOpen = true
               root.refreshBluetooth()
               root.scanBluetooth()
           }
 
           function openSettings(): void {
+              root.closeAllMenus()
               root.quickSettingsOpen = true
-              root.startOpen = false
-              root.calendarOpen = false
               root.openSettingsPage("home")
           }
 
@@ -593,7 +610,14 @@ import Quickshell
                       id: taskStartMouse
                       anchors.fill: parent
                       hoverEnabled: true
-                      onClicked: root.startOpen = !root.startOpen
+                      onClicked: {
+                          root.startOpen = !root.startOpen
+                          root.closeRightMenu()
+                          root.calendarOpen = false
+                          root.notificationsOpen = false
+                          root.powerOpen = false
+                          root.trayOpen = false
+                      }
                   }
               }
 
@@ -701,8 +725,9 @@ import Quickshell
                       anchors.fill: parent
                       hoverEnabled: true
                       onClicked: {
-                          root.quickSettingsOpen = !root.quickSettingsOpen
-                          root.startOpen = false
+                          const shouldOpen = !root.quickSettingsOpen
+                          root.closeAllMenus()
+                          root.quickSettingsOpen = shouldOpen
                       }
                   }
               }
@@ -1285,10 +1310,10 @@ import Quickshell
                                       onClicked: {
                                           if (modelData.action === "wifi") root.openSettingsPage("wifi")
                                           else if (modelData.action === "bluetooth") root.openSettingsPage("bluetooth")
-                                          else if (modelData.action === "sound") Quickshell.execDetached(["pavucontrol"])
+                                          else if (modelData.action === "sound") { root.closeRightMenu(); Quickshell.execDetached(["pavucontrol"]) }
                                           else if (modelData.action === "personalize") root.personalizationOpen = true
-                                          else if (modelData.action === "weather") Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/windows-weather-settings"])
-                                          else if (modelData.action === "style") Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/hypr-config-switcher"])
+                                          else if (modelData.action === "weather") { root.closeRightMenu(); Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/windows-weather-settings"]) }
+                                          else if (modelData.action === "style") { root.closeRightMenu(); Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/hypr-config-switcher"]) }
                                       }
                                   }
                               }
@@ -1417,8 +1442,8 @@ import Quickshell
                               }
                               Text { text: "Colors and material"; color: "white"; font.pixelSize: 14; font.bold: true }
                               Row { spacing: 8
-                                  Rectangle { width: 150; height: 38; radius: 7; color: backgroundMouse.containsMouse ? "#394552" : "#252e39"; Text { anchors.centerIn: parent; text: "Background color"; color: "white"; font.pixelSize: 11 } MouseArea { id: backgroundMouse; anchors.fill: parent; hoverEnabled: true; onClicked: backgroundPicker.open() } }
-                                  Rectangle { width: 150; height: 38; radius: 7; color: accentMouse.containsMouse ? "#394552" : "#252e39"; Text { anchors.centerIn: parent; text: "Accent color"; color: "white"; font.pixelSize: 11 } MouseArea { id: accentMouse; anchors.fill: parent; hoverEnabled: true; onClicked: accentPicker.open() } }
+                                  Rectangle { width: 150; height: 38; radius: 7; color: backgroundMouse.containsMouse ? "#394552" : "#252e39"; Text { anchors.centerIn: parent; text: "Background color"; color: "white"; font.pixelSize: 11 } MouseArea { id: backgroundMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.openSystemDialog(backgroundPicker) } }
+                                  Rectangle { width: 150; height: 38; radius: 7; color: accentMouse.containsMouse ? "#394552" : "#252e39"; Text { anchors.centerIn: parent; text: "Accent color"; color: "white"; font.pixelSize: 11 } MouseArea { id: accentMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.openSystemDialog(accentPicker) } }
                               }
                               Text { text: "App alignment"; color: "white"; font.pixelSize: 14; font.bold: true }
                               Row {
@@ -1439,24 +1464,24 @@ import Quickshell
                                   Rectangle {
                                       width: 150; height: 40; radius: 7; color: iconMouse.containsMouse ? "#394552" : "#252e39"
                                       Text { anchors.centerIn: parent; text: "Choose Start icon"; color: "white"; font.pixelSize: 11 }
-                                      MouseArea { id: iconMouse; anchors.fill: parent; hoverEnabled: true; onClicked: startIconPicker.open() }
+                                      MouseArea { id: iconMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.openSystemDialog(startIconPicker) }
                                   }
                                   Rectangle {
                                       width: 150; height: 40; radius: 7; color: wallpaperMouse.containsMouse ? "#394552" : "#252e39"
                                       Text { anchors.centerIn: parent; text: "Choose wallpaper"; color: "white"; font.pixelSize: 11 }
-                                      MouseArea { id: wallpaperMouse; anchors.fill: parent; hoverEnabled: true; onClicked: wallpaperPicker.open() }
+                                      MouseArea { id: wallpaperMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.openSystemDialog(wallpaperPicker) }
                                   }
                               }
                               Row { spacing: 8
                                   Rectangle {
                                       width: 150; height: 40; radius: 7; color: searchIconMouse.containsMouse ? "#394552" : "#252e39"
                                       Text { anchors.centerIn: parent; text: "Choose Search icon"; color: "white"; font.pixelSize: 11 }
-                                      MouseArea { id: searchIconMouse; anchors.fill: parent; hoverEnabled: true; onClicked: searchIconPicker.open() }
+                                      MouseArea { id: searchIconMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.openSystemDialog(searchIconPicker) }
                                   }
                                   Rectangle {
                                       width: 150; height: 40; radius: 7; color: taskViewIconMouse.containsMouse ? "#394552" : "#252e39"
                                       Text { anchors.centerIn: parent; text: "Choose Task View icon"; color: "white"; font.pixelSize: 11 }
-                                      MouseArea { id: taskViewIconMouse; anchors.fill: parent; hoverEnabled: true; onClicked: taskViewIconPicker.open() }
+                                      MouseArea { id: taskViewIconMouse; anchors.fill: parent; hoverEnabled: true; onClicked: root.openSystemDialog(taskViewIconPicker) }
                                   }
                               }
                           }
