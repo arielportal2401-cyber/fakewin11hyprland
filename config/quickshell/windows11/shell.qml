@@ -265,14 +265,14 @@ import Quickshell
           ListElement { name: "Search"; icon: "@HOME@/.config/quickshell/windows11/assets/search.svg"; command: ""; match: ""; action: "search" }
           ListElement { name: "Task View"; icon: "@HOME@/.config/quickshell/windows11/assets/taskview.svg"; command: "rofi -show window"; match: ""; action: "launch" }
           ListElement { name: "File Explorer"; icon: "@HOME@/.config/quickshell/windows11/assets/explorer.svg"; command: "thunar"; match: "thunar"; action: "launch" }
-          ListElement { name: "Browser"; icon: "@HOME@/.config/quickshell/windows11/assets/browser.svg"; command: "zen-browser"; match: "zen"; action: "launch" }
+          ListElement { name: "Browser"; icon: "@HOME@/.config/quickshell/windows11/assets/browser.svg"; command: "@HOME@/.local/bin/zen"; match: "zen"; action: "launch" }
           ListElement { name: "Discord"; icon: "com.discordapp.Discord"; command: "@HOME@/.local/bin/discord-wayland"; match: "discord"; action: "launch" }
       }
 
       ListModel {
           id: recommendedModel
           ListElement { name: "File Explorer"; detail: "Recently used"; icon: "org.xfce.thunar"; command: "thunar" }
-          ListElement { name: "Zen Browser"; detail: "Recently used"; icon: "@HOME@/.config/quickshell/windows11/assets/zen-waybar.png"; command: "zen-browser" }
+          ListElement { name: "Zen Browser"; detail: "Recently used"; icon: "@HOME@/.config/quickshell/windows11/assets/zen-waybar.png"; command: "@HOME@/.local/bin/zen" }
           ListElement { name: "Discord"; detail: "Recently used"; icon: "com.discordapp.Discord"; command: "@HOME@/.local/bin/discord-wayland"; match: "discord" }
           ListElement { name: "Prism Launcher"; detail: "Recently added"; icon: "org.prismlauncher.PrismLauncher"; command: "prismlauncher" }
           ListElement { name: "Volume Control"; detail: "Recently used"; icon: "org.pulseaudio.pavucontrol"; command: "pavucontrol" }
@@ -282,7 +282,7 @@ import Quickshell
       ListModel {
           id: pinnedModel
 
-          ListElement { name: "Zen Browser"; icon: "@HOME@/.config/quickshell/windows11/assets/zen-waybar.png"; command: "zen-browser" }
+          ListElement { name: "Zen Browser"; icon: "@HOME@/.config/quickshell/windows11/assets/zen-waybar.png"; command: "@HOME@/.local/bin/zen" }
           ListElement { name: "Firefox"; icon: "firefox"; command: "firefox --name firefox" }
           ListElement { name: "Discord"; icon: "com.discordapp.Discord"; command: "@HOME@/.local/bin/discord-wayland"; match: "discord" }
           ListElement { name: "Prism Launcher"; icon: "org.prismlauncher.PrismLauncher"; command: "prismlauncher" }

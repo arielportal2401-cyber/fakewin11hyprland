@@ -122,8 +122,8 @@
     "exec": "@HOME@/.local/bin/windows-task-state '^(zen|zen-browser)$' 'Zen Browser'",
     "interval": 1,
     "tooltip": true,
-    "on-click": "@HOME@/.local/bin/windows-task-action toggle '^(zen|zen-browser)$' /bin/sh -lc zen-browser",
-    "on-click-middle": "@HOME@/.local/bin/windows-task-action new '^(zen|zen-browser)$' /bin/sh -lc zen-browser",
+    "on-click": "@HOME@/.local/bin/windows-task-action toggle '^(zen|zen-browser)$' @HOME@/.local/bin/zen",
+    "on-click-middle": "@HOME@/.local/bin/windows-task-action new '^(zen|zen-browser)$' @HOME@/.local/bin/zen",
     "on-click-right": "@HOME@/.local/bin/windows-task-menu browser"
   },
   "custom/pin-kitty": {

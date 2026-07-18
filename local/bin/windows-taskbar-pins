@@ -31,7 +31,7 @@ DEFAULTS = [
         "id": "browser",
         "name": "Zen Browser",
         "match": "^(zen|zen-browser)$",
-        "command": "zen-browser",
+        "command": str(HOME / ".local/bin/zen"),
         "icon": str(HOME / ".config/quickshell/windows11/assets/zen-waybar.png"),
     },
     {
